@@ -162,25 +162,34 @@ const useProductMeasurement = () => {
   }, []);
 
 
-  // Delete product measurement
-  const deleteProductMeasurement = useCallback(async (id: number): Promise<void> => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`${baseUrl}/${id}`, {
-        method: 'DELETE',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to delete product measurement');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      throw err;
-    } finally {
-      setLoading(false);
+
+// Delete product measurement by product ID and size
+const deleteProductMeasurement = useCallback(async (productId: number, size: string): Promise<void> => {
+  setLoading(true);
+  setError(null);
+  try {
+    const response = await fetch(`${baseUrl}/product-measurement/product/${productId}/size/${size}`, {
+      method: 'DELETE',
+    });
+   
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || 'Failed to delete product measurement');
     }
-  }, []);
+
+    // Optionally handle the success response
+    const result = await response.json();
+    console.log('Delete successful:', result.message);
+    
+  } catch (err) {
+    setError(err instanceof Error ? err.message : 'An error occurred');
+    throw err;
+  } finally {
+    setLoading(false);
+  }
+}, []);
+
+
 
 
   // Get single product measurement

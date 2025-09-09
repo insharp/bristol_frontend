@@ -228,6 +228,21 @@ const MeasurementFieldManagement: React.FC<MeasurementFieldManagementProps> = ({
         );
       }
     },
+
+    { 
+      key: "product_name", 
+      label: "Product", 
+      minWidth: "50px",
+      render: (value: number) => {
+        const product = products.find(p => p.id === value.toString());
+        return (
+          <span className="font-medium text-blue-600">
+            {product ? product.category_name : value}
+          </span>
+        );
+      }
+    },
+
     { 
       key: "field_count", 
       label: "Field Count", 

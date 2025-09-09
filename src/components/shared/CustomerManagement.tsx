@@ -763,6 +763,9 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
       </main>
     </div>
   );
+
+  
 };
+
 
 export default CustomerManagement;
