@@ -15,6 +15,7 @@ interface EmployeeFormProps {
   onUpdateEmployee: (index: number, field: string, value: any) => void;
 }
 
+
 const EmployeeForm: React.FC<EmployeeFormProps> = ({
   employees,
   measurementFields,
