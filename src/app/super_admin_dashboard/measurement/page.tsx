@@ -4,6 +4,7 @@ import ProductManagement from "@/components/shared/ProductManagement";
 import MeasurementFieldManagement from "@/components/shared/MeasurementFieldManagement";
 import Button from "@/components/ui/button";
 import ProductMeasurementComponent from "@/components/shared/ProductMeasurement";
+import CustomerMeasurement from "@/components/shared/CustomerMeasurement";
 
 type TabType = 'customer' | 'product' | 'fields';
 
@@ -48,15 +49,12 @@ const AdminMeasurementPage = () => {
 
       {/* Conditional Rendering of Tables */}
       {activeTab === 'customer' && (
-        <ProductManagement
-          title="Customer Measurements"
-          permissions={{
-            canCreate: true,
-            canEdit: true,
-            canDelete: true,
-            canView: true
-          }}
-        />
+        <CustomerMeasurement 
+      view={true}
+      edit={true}
+      delete={true}
+      add={true}
+    />
       )}
 
       {activeTab === 'product' && (

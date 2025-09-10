@@ -93,17 +93,17 @@ const ProductMeasurementComponent: React.FC = () => {
   };
 
   const confirmDelete = async () => {
-    if (selectedMeasurement) {
-      try {
-        await deleteProductMeasurement(selectedMeasurement.id);
-        await loadData();
-        setIsDeleteModalOpen(false);
-        setSelectedMeasurement(null);
-      } catch (error) {
-        console.error('Failed to delete measurement:', error);
-      }
+  if (selectedMeasurement) {
+    try {
+      await deleteProductMeasurement(selectedMeasurement.product_id, selectedMeasurement.size);
+      await loadData();
+      setIsDeleteModalOpen(false);
+      setSelectedMeasurement(null);
+    } catch (error) {
+      console.error('Failed to delete measurement:', error);
     }
-  };
+  }
+};
 
   const handleFormSubmit = async (data: CreateProductMeasurementData, isEdit = false) => {
     try {
@@ -160,9 +160,9 @@ const ProductMeasurementComponent: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="flex-1 py-8 px-12  bg-blue-50/40 rounded-2xl flex flex-col overflow-hidden gap-4">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center ">
         <h1 className="text-2xl font-bold text-gray-900">Product Measurements</h1>
         <button
           onClick={handleAdd}
@@ -249,48 +249,60 @@ const ProductMeasurementComponent: React.FC = () => {
       </SlideModal>
 
       {/* Delete Confirmation Modal */}
-      {isDeleteModalOpen && (
-        <div className="fixed inset-0 z-[10000] overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="sm:flex sm:items-start">
-                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                    <Trash2 className="h-6 w-6 text-red-600" />
-                  </div>
-                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900">
-                      Delete Product Measurement
-                    </h3>
-                    <div className="mt-2">
-                      <p className="text-sm text-gray-500">
-                        Are you sure you want to delete this product measurement? This action cannot be undone.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button
-                  type="button"
-                  onClick={confirmDelete}
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
-                >
-                  Delete
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsDeleteModalOpen(false)}
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                >
-                  Cancel
-                </button>
+     {/* Delete Confirmation Modal */}
+{isDeleteModalOpen && (
+  <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div 
+      className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+      onClick={() => setIsDeleteModalOpen(false)}
+    />
+    <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+      {/* This element is to trick the browser into centering the modal contents. */}
+      <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">
+        &#8203;
+      </span>
+      <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full relative">
+        <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+          <div className="sm:flex sm:items-start">
+            <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+              <Trash2 className="h-6 w-6 text-red-600" />
+            </div>
+            <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+              <h3 className="text-lg leading-6 font-medium text-gray-900">
+                Delete Product Measurement
+              </h3>
+              <div className="mt-2">
+                <p className="text-sm text-gray-500">
+                  Are you sure you want to delete the measurement for {selectedMeasurement?.product_name} (Size: {selectedMeasurement?.size})? This action cannot be undone.
+                </p>
               </div>
             </div>
           </div>
         </div>
-      )}
+        <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+          <button
+            type="button"
+            onClick={confirmDelete}
+            disabled={loading}
+            className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed sm:ml-3 sm:w-auto sm:text-sm"
+          >
+            {loading ? 'Deleting...' : 'Delete'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsDeleteModalOpen(false);
+              setSelectedMeasurement(null);
+            }}
+            className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 };
