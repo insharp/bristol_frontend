@@ -21,6 +21,7 @@ export const useCustomerMeasurement = () => {
   const fetchData = useCallback(async (endpoint: string, options?: RequestInit) => {
     try {
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           ...options?.headers,
@@ -145,6 +146,7 @@ export const useCustomerMeasurement = () => {
   try {
     await fetchData(`/corporate-measurement/${bulkId}/`, {
       method: 'DELETE',
+
     });
   } finally {
     setLoading(false);
@@ -189,6 +191,7 @@ export const useCustomers = () => {
 
         const response = await fetch(url, {
         method: 'GET',
+        credentials:"include",
         headers: { 
             'Content-Type': 'application/json',
             // Add authentication if needed:
@@ -231,7 +234,7 @@ export const useProducts = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`${API_BASE_URL}/product`);
+      const response = await fetch(`${API_BASE_URL}/product`,{credentials:"include"});
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -264,7 +267,7 @@ export const useMeasurementFields = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`${API_BASE_URL}/measurement-field/product/${productId}/`);
+      const response = await fetch(`${API_BASE_URL}/measurement-field/product/${productId}/`,{credentials:"include"});
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));

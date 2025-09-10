@@ -67,7 +67,7 @@ const useProductMeasurement = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${baseUrl}/measurement-field/product/${productId}`);
+      const response = await fetch(`${baseUrl}/measurement-field/product/${productId}`,{credentials:"include"});
       if (!response.ok) {
         throw new Error('Failed to fetch measurement fields');
       }
@@ -87,7 +87,7 @@ const useProductMeasurement = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${baseUrl}/product`);
+      const response = await fetch(`${baseUrl}/product`,{credentials:"include"});
       if (!response.ok) {
         throw new Error('Failed to fetch products');
       }
@@ -110,6 +110,7 @@ const useProductMeasurement = () => {
     try {
     console.log(data)
       const response = await fetch(`${baseUrl}/product-measurement`, {
+        
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -140,6 +141,7 @@ const useProductMeasurement = () => {
     setError(null);
     try {
       const response = await fetch(`${baseUrl}/${id}`, {
+        credentials:"include",
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -169,6 +171,7 @@ const deleteProductMeasurement = useCallback(async (productId: number, size: str
   setError(null);
   try {
     const response = await fetch(`${baseUrl}/product-measurement/product/${productId}/size/${size}`, {
+      credentials:"include",
       method: 'DELETE',
     });
    
@@ -197,7 +200,7 @@ const deleteProductMeasurement = useCallback(async (productId: number, size: str
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${baseUrl}/${id}`);
+      const response = await fetch(`${baseUrl}/${id}`,{credentials:"include"});
       if (!response.ok) {
         throw new Error('Failed to fetch product measurement');
       }
