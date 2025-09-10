@@ -24,8 +24,8 @@ export default function SidebarLayout() {
     const sidebarItems: SidebarItem[] = [
     { icon: <FaUser />, label: "Customers", href: "/super_admin_dashboard/customer" },
     { icon: <FaIdBadge />, label: "Measurements", href: "/super_admin_dashboard/measurement" },
-    { icon: <FaUpload />, label: "Orders", href: "/super_admin_dashboard/resources" },
-    { icon: <FaUpload />, label: "Appointments", href: "#" },
+    { icon: <FaUpload />, label: "Orders", href: "/super_admin_dashboard/order" },
+    { icon: <FaUpload />, label: "Appointments", href: "/super_admin_dashboard/appointment" },
     { icon: <FaUpload />, label: "Products", href: "/super_admin_dashboard/product" },
     { icon: <FaHome />, label: "Overview", href: "/super_admin_dashboard/overview" },
     { icon: <FaIdBadge />, label: "User", href: "/super_admin_dashboard/users" },

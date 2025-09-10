@@ -107,7 +107,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
   const [modalMode, setModalMode] = useState<"create" | "edit" | "view">("create");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [formData, setFormData] = useState({
-    customer_type: "individual" as "individual" | "corporate",
+    customer_type: "normal" as "normal" | "corporate",
     email: "",
     phone_number: "",
     special_notes: "",
@@ -172,7 +172,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
       errors.phone_number = 'Phone number must be at least 10 digits';
     }
 
-    if (formData.customer_type === 'individual') {
+    if (formData.customer_type === 'normal') {
       if (!formData.customer_name.trim()) {
         errors.customer_name = 'Customer name is required';
       }
@@ -232,12 +232,14 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
     const phoneMatch = customer.phone_number.includes(searchQuery);
     
     let nameMatch = false;
-    if (customer.customer_type === 'individual') {
+    if (customer.customer_type === 'normal') {
       nameMatch = (customer as any).customer_name.toLowerCase().includes(searchLower);
     } else {
       const corp = customer as any;
-      nameMatch = corp.company_name.toLowerCase().includes(searchLower) ||
-                  corp.contact_person.toLowerCase().includes(searchLower);
+      nameMatch =
+          (corp.company_name?.toLowerCase().includes(searchLower) || false) ||
+          (corp.contact_person?.toLowerCase().includes(searchLower) || false);
+
     }
     return emailMatch || phoneMatch || nameMatch;
   });
@@ -251,7 +253,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
   // Type filter options
   const typeFilters = [
     { key: "all" as CustomerType, label: "All Customers", count: getCustomerCount("all") },
-    { key: "individual" as CustomerType, label: "Individual", count: getCustomerCount("individual") },
+    { key: "normal" as CustomerType, label: "Individual", count: getCustomerCount("normal") },
     { key: "corporate" as CustomerType, label: "Corporate", count: getCustomerCount("corporate") },
   ];
 
@@ -267,7 +269,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
       { key: "id", label: "Customer ID", width: "120px" },
     ];
 
-    if (selectedType === "individual" || selectedType === "all") {
+    if (selectedType === "normal" || selectedType === "all") {
       baseColumns.push({ key: "customer_name", label: "Customer Name", minWidth: "150px" });
     }
     
@@ -287,11 +289,11 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
         width: "100px",
         render: (value: any) => {
           const typeColors: Record<string, string> = {
-            individual: "bg-blue-100 text-blue-800",
+            normal: "bg-blue-100 text-blue-800",
             corporate: "bg-purple-100 text-purple-800"
           };
           const typeLabels: Record<string, string> = {
-            individual: "Individual",
+            normal: "Individual",
             corporate: "Corporate"
           };
           return (
@@ -312,10 +314,10 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
 
   // Helper function to set form data from customer
   const setFormDataFromCustomer = (customer: Customer) => {
-    if (customer.customer_type === 'individual') {
+    if (customer.customer_type === 'normal') {
       const indCustomer = customer as any;
       setFormData({
-        customer_type: 'individual',
+        customer_type: 'normal',
         email: indCustomer.email,
         phone_number: indCustomer.phone_number,
         special_notes: indCustomer.special_notes || '',
@@ -387,7 +389,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
           </svg>
         ),
         onClick: (customer: Customer) => {
-          const name = customer.customer_type === 'individual' 
+          const name = customer.customer_type === 'normal' 
             ? (customer as any).customer_name 
             : (customer as any).company_name;
           if (window.confirm(`Are you sure you want to delete customer "${name}"?`)) {
@@ -408,7 +410,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
     
     setSelectedCustomer(null);
     setFormData({
-      customer_type: "individual",
+      customer_type: "normal",
       email: "",
       phone_number: "",
       special_notes: "",
@@ -447,7 +449,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
     const result = await createCustomer(formData);
     if (result.success) {
       closeModal();
-      const name = formData.customer_type === 'individual' ? formData.customer_name : formData.company_name;
+      const name = formData.customer_type === 'normal' ? formData.customer_name : formData.company_name;
       showSuccessMessage('Success!', `Customer "${name}" has been created successfully.`);
     } else {
       showErrorMessage('Creation Failed', result.error || 'Failed to create customer');
@@ -459,7 +461,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
     const result = await updateCustomer(selectedCustomer.id, formData);
     if (result.success) {
       closeModal();
-      const name = formData.customer_type === 'individual' ? formData.customer_name : formData.company_name;
+      const name = formData.customer_type === 'normal' ? formData.customer_name : formData.company_name;
       showSuccessMessage('Success!', `Customer "${name}" has been updated successfully.`);
     } else {
       showErrorMessage('Update Failed', result.error || 'Failed to update customer');
@@ -471,7 +473,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
     const result = await deleteCustomer(customerId);
     if (result.success) {
       const name = customerToDelete 
-        ? (customerToDelete.customer_type === 'individual' 
+        ? (customerToDelete.customer_type === 'normal' 
             ? (customerToDelete as any).customer_name 
             : (customerToDelete as any).company_name)
         : 'Customer';
@@ -504,11 +506,11 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
   };
 
   // Handle customer type change in form
-  const handleCustomerTypeChange = (type: "individual" | "corporate") => {
+  const handleCustomerTypeChange = (type: "normal" | "corporate") => {
     setFormData({
       ...formData,
       customer_type: type,
-      ...(type === 'individual' ? {
+      ...(type === 'normal' ? {
         company_name: '',
         contact_person: '',
         delivery_address: ''
@@ -609,18 +611,18 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
               <label className="block text-sm font-medium mb-2">Customer Type *</label>
               <select
                 value={formData.customer_type}
-                onChange={(e) => handleCustomerTypeChange(e.target.value as "individual" | "corporate")}
+                onChange={(e) => handleCustomerTypeChange(e.target.value as "normal" | "corporate")}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 disabled={modalMode === "view"}
                 required
               >
-                <option value="individual">Individual</option>
+                <option value="normal">Individual</option>
                 <option value="corporate">Corporate</option>
               </select>
             </div>
 
             {/* Individual Customer Fields */}
-            {formData.customer_type === 'individual' && (
+            {formData.customer_type === 'normal' && (
               <div>
                 <label className="block text-sm font-medium mb-2">Customer Name *</label>
                 <input

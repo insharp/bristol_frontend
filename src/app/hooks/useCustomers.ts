@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 
 interface BaseCustomer {
   id: string;
-  customer_type: "individual" | "corporate";
+  customer_type: "normal" | "corporate";
   email: string;
   phone_number: string;
   special_notes?: string;
@@ -10,8 +10,8 @@ interface BaseCustomer {
   updated_at?: string;
 }
 
-interface IndividualCustomer extends BaseCustomer {
-  customer_type: "individual";
+interface NormalCustomer extends BaseCustomer {
+  customer_type: "normal";
   customer_name: string;
 }
 
@@ -22,8 +22,8 @@ interface CorporateCustomer extends BaseCustomer {
   delivery_address: string;
 }
 
-export type Customer = IndividualCustomer | CorporateCustomer;
-export type CustomerType = "all" | "individual" | "corporate";
+export type Customer = NormalCustomer | CorporateCustomer;
+export type CustomerType = "all" | "normal" | "corporate";
 
 export const useCustomers = (apiEndpoint?: string) => {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -70,7 +70,7 @@ export const useCustomers = (apiEndpoint?: string) => {
         email: formData.email,
         phone_number: formData.phone_number,
         special_notes: formData.special_notes,
-        ...(formData.customer_type === 'individual' 
+        ...(formData.customer_type === 'normal' 
           ? { customer_name: formData.customer_name }
           : {
               company_name: formData.company_name,
@@ -80,7 +80,9 @@ export const useCustomers = (apiEndpoint?: string) => {
         )
       };
 
-      const endpoint = formData.customer_type === 'individual' ? 'customer/individual' : 'customer/corporate';
+     // const endpoint = formData.customer_type === 'individual' ? 'customer/normal' : 'customer/corporate';
+
+      const endpoint = formData.customer_type === 'normal' ? 'customer/normal' : 'customer/corporate';
         
       const res = await fetch(
         `${baseUrl}/${endpoint}`,
@@ -111,7 +113,7 @@ export const useCustomers = (apiEndpoint?: string) => {
         email: formData.email,
         phone_number: formData.phone_number,
         special_notes: formData.special_notes,
-        ...(formData.customer_type === 'individual' 
+        ...(formData.customer_type === 'normal' 
           ? { customer_name: formData.customer_name }
           : {
               company_name: formData.company_name,
