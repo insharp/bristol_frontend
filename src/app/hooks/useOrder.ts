@@ -1,336 +1,295 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect } from "react";
 
-// ---------------- ENUMS ----------------
-export enum OrderStatus {
-  ORDER_CONFIRMED = "order_confirmed",
-  FABRIC_READY = "fabric_ready",
-  CUTTING = "cutting",
-  STITCHING = "stitching",
-  FITTING = "fitting",
-  READY_FOR_PICKUP = "ready_for_pickup",
-  COMPLETED = "completed",
-}
-
-// ---------------- TYPES ----------------
-export interface Customer {
+// ---------------------
+// Interfaces
+// ---------------------
+export interface BaseSingleOrder {
   id: number;
-  name: string;
-}
-
-export interface Product {
-  id: number;
-  name: string;
-  price: number;
-  category_name: string;
-}
-
-export interface SingleOrderCreate {
-  customerid: number;
-  productid: number;
+  customer_id: number;
+  order_type: "single";
+  product: string;
   quantity: number;
-  unitprice: number;
-  status?: OrderStatus;
-  stylepreference?: string;
-  speacial_requests?: string;
+  unit_price: number;
+  style_preferences?: string;
+  special_notes?: string;
+  status: string; // order confirmed, cutting, ready to pickup, etc.
 }
 
-export interface SingleOrderUpdate {
-  customerid?: number;
-  productid?: number;
-  quantity?: number;
-  unitprice?: number;
-  status?: OrderStatus; // ✅ made optional
-  stylepreference?: string;
-  speacial_requests?: string;
+export interface SingleOrder extends BaseSingleOrder {
+  customer_name?: string;
+  product_name?: string;
 }
 
-export interface SingleOrderResponse {
-  id: number;
-  customerid: number;
-  productid: number;
-  quantity: number;
-  unitprice: number;
-  status: OrderStatus;
-  stylepreference?: string;
-  speacial_requests?: string;
-  created_at: string;
-  updated_at: string;
-  mesurement_data?: any[];
+export interface Filters {
+  customer_id?: number;
+  product?: string;
+  status?: string;
+  search?: string;
+  skip?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
 }
 
-interface UseOrderState {
-  singleOrders: SingleOrderResponse[];
-  singleOrder: SingleOrderResponse | null;
-
-  customers: Customer[];
-  products: Product[];
-
-  loading: boolean;
-  creating: boolean;
-  updating: boolean;
-  deleting: boolean;
-
-  error: string | null;
+export interface FormData {
+  customer_id: string;
+  order_type: "single";
+  product: string;
+  quantity: string;
+  unit_price: string;
+  style_preferences: string;
+  special_notes: string;
+  status?: string;
 }
 
-interface UseOrderActions {
-  // Single Orders
-  createSingleOrder: (data: SingleOrderCreate) => Promise<SingleOrderResponse | null>;
-  getSingleOrder: (id: number) => Promise<SingleOrderResponse | null>;
-  getAllSingleOrders: () => Promise<SingleOrderResponse[]>;
-  updateSingleOrder: (id: number, data: SingleOrderUpdate) => Promise<SingleOrderResponse | null>;
-  deleteSingleOrder: (id: number) => Promise<boolean>;
+// ---------------------
+// Hook
+// ---------------------
+export const useSingleOrders = (apiEndpoint?: string) => {
+  const [orders, setOrders] = useState<SingleOrder[]>([]);
+  const [customers, setCustomers] = useState<{ id: number; name: string }[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Customers + Products
-  fetchCustomers: () => Promise<{ success: boolean; data?: Customer[]; error?: string }>;
-  fetchProducts: () => Promise<{ success: boolean; data?: Product[]; error?: string }>;
-
-  // Measurements
-  checkMeasurementsExist: (customerId: number, productId: number) => Promise<{ exists: boolean; error?: string }>;
-
-  // Utils
-  clearError: () => void;
-  clearOrders: () => void;
-}
-
-// ---------------- HOOK ----------------
-export const useOrder = (
-  baseUrl: string = "http://localhost:8000",
-  authToken?: string
-): UseOrderState & UseOrderActions => {
-  const [state, setState] = useState<UseOrderState>({
-    singleOrders: [],
-    singleOrder: null,
-    customers: [],
-    products: [],
-    loading: false,
-    creating: false,
-    updating: false,
-    deleting: false,
-    error: null,
+  const [formData, setFormData] = useState<FormData>({
+    customer_id: "",
+    order_type: "single",
+    product: "",
+    quantity: "",
+    unit_price: "",
+    style_preferences: "",
+    special_notes: "",
+    status: undefined,
   });
 
-  // 🔑 Request helper
-  const makeRequest = useCallback(
-    async (
-      url: string,
-      method: "GET" | "POST" | "PUT" | "DELETE" = "GET",
-      body?: any
-    ): Promise<any> => {
-      const headers: HeadersInit = { "Content-Type": "application/json" };
-      if (authToken) headers.Authorization = `Bearer ${authToken}`;
+  const [filters, setFilters] = useState<Filters>({
+    customer_id: undefined,
+    product: undefined,
+    status: undefined,
+    search: undefined,
+    skip: 0,
+    limit: 50,
+    sort_by: "id",
+    sort_order: "desc",
+  });
 
-      const config: RequestInit = {
-        method,
-        headers,
-        credentials: "include", // send cookies
-      };
+  const baseUrl = apiEndpoint || `http://localhost:8000/orders/single`;
+  const customerBaseUrl = `http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}`;
 
-      if (body && method !== "GET") config.body = JSON.stringify(body);
-
-      const response = await fetch(`${baseUrl}${url}`, config);
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({
-          detail: "Unknown error occurred",
-        }));
-        throw new Error(err.detail || `HTTP ${response.status}`);
-      }
-
-      return method === "DELETE" ? true : response.json();
-    },
-    [baseUrl, authToken]
-  );
-
-  const handleError = useCallback((error: any) => {
-    const msg = error instanceof Error ? error.message : "Unexpected error";
-    setState((p) => ({ ...p, error: msg }));
-    console.error("Order API error:", error);
-  }, []);
-
-  // ---------------- CUSTOMERS ----------------
-  const fetchCustomers = useCallback(async () => {
+  // ---------------------
+  // Fetch Customers
+  // ---------------------
+  const fetchCustomers = async () => {
     try {
-      setState((p) => ({ ...p, loading: true, error: null }));
-      const url = `http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}/customer`;
-
-      const res = await fetch(url, { credentials: "include" });
-
+      const res = await fetch(`${customerBaseUrl}/customer`, { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         const customerData = data.data || data;
 
-        const transformed: Customer[] = customerData.map((c: any) => ({
+        const transformed = customerData.map((c: any) => ({
           id: parseInt(c.id),
-          name:
-            c.customer_type === "normal"
-              ? c.customer_name
-              : `${c.company_name} (${c.contact_person})`,
+          name: c.customer_type === "normal" ? c.customer_name : `${c.company_name} (${c.contact_person})`,
         }));
 
-        setState((p) => ({ ...p, customers: transformed, loading: false }));
+        setCustomers(transformed);
         return { success: true, data: transformed };
-      } else {
-        throw new Error("Failed to fetch customers");
       }
-    } catch (err) {
-      handleError(err);
-      setState((p) => ({ ...p, customers: [], loading: false }));
       return { success: false, error: "Failed to fetch customers" };
+    } catch (err) {
+      console.error("Fetch customers error:", err);
+      return { success: false, error: "Connection error" };
     }
-  }, [handleError]);
+  };
 
-  // ---------------- PRODUCTS ----------------
-  const fetchProducts = useCallback(async () => {
+  // ---------------------
+  // Fetch Orders
+  // ---------------------
+  const fetchOrders = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setState((p) => ({ ...p, loading: true, error: null }));
-      const url = `http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}/product`;
+      const params = new URLSearchParams();
+      Object.entries(filters).forEach(([k, v]) => {
+        if (v !== undefined && v !== "") params.append(k, v.toString());
+      });
 
-      const res = await fetch(url, { credentials: "include" });
+      const res = await fetch(`${baseUrl}/?${params.toString()}`, { credentials: "include" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      if (res.ok) {
-        const data = await res.json();
-        const productData = data.data || data;
+      const data: SingleOrder[] = await res.json();
+      setOrders(data);
+      return { success: true, data };
+    } catch (err) {
+      console.error(err);
+      setError("Failed to fetch orders");
+      return { success: false, error: "Failed to fetch orders" };
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        const transformed: Product[] = productData.map((p: any) => ({
-          id: parseInt(p.id),
-          name: p.category_name,
-          price: parseFloat(p.base_price),
-          category_name: p.category_name,
-        }));
+  // ---------------------
+  // Create Order
+  // ---------------------
+  const createOrder = async () => {
+    if (!formData.customer_id || !formData.product || !formData.quantity || !formData.unit_price) {
+      return { success: false, error: "Please fill all required fields" };
+    }
 
-        setState((prev) => ({ ...prev, products: transformed, loading: false }));
-        return { success: true, data: transformed };
-      } else {
-        throw new Error("Failed to fetch products");
+    const payload = {
+      customer_id: parseInt(formData.customer_id),
+      order_type: "single",
+      product: formData.product,
+      quantity: parseInt(formData.quantity),
+      unit_price: parseFloat(formData.unit_price),
+      style_preferences: formData.style_preferences || null,
+      special_notes: formData.special_notes || null,
+      status: formData.status || "order confirmed",
+    };
+
+    try {
+      const res = await fetch(`${baseUrl}/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
+        return { success: false, error: errorData.message || "Failed to create order" };
       }
-    } catch (err) {
-      handleError(err);
-      setState((p) => ({ ...p, products: [], loading: false }));
-      return { success: false, error: "Failed to fetch products" };
-    }
-  }, [handleError]);
 
-  // ---------------- MEASUREMENTS ----------------
-  const checkMeasurementsExist = useCallback(async (customerId: number, productId: number) => {
+      const created = await res.json();
+      await fetchOrders();
+
+      setFormData({
+        customer_id: "",
+        order_type: "single",
+        product: "",
+        quantity: "",
+        unit_price: "",
+        style_preferences: "",
+        special_notes: "",
+        status: undefined,
+      });
+
+      return { success: true, data: created, message: "Order created successfully!" };
+    } catch (err) {
+      console.error("Create order error:", err);
+      return { success: false, error: "Failed to create order" };
+    }
+  };
+
+  // ---------------------
+  // Update Order
+  // ---------------------
+  const updateOrder = async (orderId: number, updateData?: Partial<FormData>) => {
+    const dataToUse = updateData || formData;
+
+    const payload: any = {};
+    if (dataToUse.product) payload.product = dataToUse.product;
+    if (dataToUse.quantity) payload.quantity = parseInt(dataToUse.quantity);
+    if (dataToUse.unit_price) payload.unit_price = parseFloat(dataToUse.unit_price);
+    if (dataToUse.style_preferences !== undefined) payload.style_preferences = dataToUse.style_preferences;
+    if (dataToUse.special_notes !== undefined) payload.special_notes = dataToUse.special_notes;
+    if (dataToUse.status) payload.status = dataToUse.status;
+
     try {
-      const url = `http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}/measurement/${customerId}/${productId}`;
-      const res = await fetch(url, { credentials: "include" });
+      const res = await fetch(`${baseUrl}/${orderId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
 
-      if (res.ok) return { exists: true };
-      if (res.status === 404) return { exists: false };
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
+        return { success: false, error: errorData.message || "Failed to update order" };
+      }
 
-      const errorText = await res.text().catch(() => "Unknown error");
-      return { exists: false, error: errorText };
+      const updated = await res.json();
+      await fetchOrders();
+      return { success: true, data: updated, message: "Order updated successfully!" };
     } catch (err) {
-      return { exists: false, error: (err as Error).message };
+      console.error("Update order error:", err);
+      return { success: false, error: "Failed to update order" };
     }
+  };
+
+  // ---------------------
+  // Delete Order
+  // ---------------------
+  const deleteOrder = async (orderId: number) => {
+    try {
+      const res = await fetch(`${baseUrl}/${orderId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
+        return { success: false, error: errorData.message || "Failed to delete order" };
+      }
+
+      await fetchOrders();
+      return { success: true, message: "Order deleted successfully!" };
+    } catch (err) {
+      console.error("Delete order error:", err);
+      return { success: false, error: "Failed to delete order" };
+    }
+  };
+
+  // ---------------------
+  // Filters
+  // ---------------------
+  const handleFilterChange = (key: keyof Filters, value: any) => {
+    setFilters((prev) => ({ ...prev, [key]: value, skip: 0 }));
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      customer_id: undefined,
+      product: undefined,
+      status: undefined,
+      search: undefined,
+      skip: 0,
+      limit: 50,
+      sort_by: "id",
+      sort_order: "desc",
+    });
+  };
+
+  // ---------------------
+  // Effects
+  // ---------------------
+  useEffect(() => {
+    fetchCustomers();
+    fetchOrders();
   }, []);
 
-  // ---------------- SINGLE ORDERS ----------------
-  const createSingleOrder = useCallback(async (data: SingleOrderCreate) => {
-    try {
-      setState((p) => ({ ...p, creating: true, error: null }));
-      const order = await makeRequest("/orders/single", "POST", data);
-      setState((p) => ({
-        ...p,
-        singleOrders: [...p.singleOrders, order],
-        creating: false,
-      }));
-      return order;
-    } catch (e) {
-      handleError(e);
-      setState((p) => ({ ...p, creating: false }));
-      return null;
-    }
-  }, [makeRequest, handleError]);
+  useEffect(() => {
+    fetchOrders();
+  }, [filters]);
 
-  const getSingleOrder = useCallback(async (id: number) => {
-    try {
-      setState((p) => ({ ...p, loading: true, error: null }));
-      const order = await makeRequest(`/orders/single/${id}`);
-      setState((p) => ({ ...p, singleOrder: order, loading: false }));
-      return order;
-    } catch (e) {
-      handleError(e);
-      setState((p) => ({ ...p, loading: false }));
-      return null;
-    }
-  }, [makeRequest, handleError]);
-
-  const getAllSingleOrders = useCallback(async () => {
-    try {
-      setState((p) => ({ ...p, loading: true, error: null }));
-      const orders = await makeRequest("/orders/single");
-      setState((p) => ({ ...p, singleOrders: orders, loading: false }));
-      return orders;
-    } catch (e) {
-      handleError(e);
-      setState((p) => ({ ...p, loading: false }));
-      return [];
-    }
-  }, [makeRequest, handleError]);
-
-  const updateSingleOrder = useCallback(async (id: number, data: SingleOrderUpdate) => {
-    try {
-      setState((p) => ({ ...p, updating: true, error: null }));
-      const updated = await makeRequest(`/orders/single/${id}`, "PUT", data);
-      setState((p) => ({
-        ...p,
-        singleOrders: p.singleOrders.map((o) => (o.id === id ? updated : o)),
-        singleOrder: p.singleOrder?.id === id ? updated : p.singleOrder,
-        updating: false,
-      }));
-      return updated;
-    } catch (e) {
-      handleError(e);
-      setState((p) => ({ ...p, updating: false }));
-      return null;
-    }
-  }, [makeRequest, handleError]);
-
-  const deleteSingleOrder = useCallback(async (id: number) => {
-    try {
-      setState((p) => ({ ...p, deleting: true, error: null }));
-      await makeRequest(`/orders/single/${id}`, "DELETE");
-      setState((p) => ({
-        ...p,
-        singleOrders: p.singleOrders.filter((o) => o.id !== id),
-        singleOrder: p.singleOrder?.id === id ? null : p.singleOrder,
-        deleting: false,
-      }));
-      return true;
-    } catch (e) {
-      handleError(e);
-      setState((p) => ({ ...p, deleting: false }));
-      return false;
-    }
-  }, [makeRequest, handleError]);
-
-  // ---------------- UTILS ----------------
-  const clearError = useCallback(() => setState((p) => ({ ...p, error: null })), []);
-  const clearOrders = useCallback(
-    () => setState((p) => ({
-      ...p,
-      singleOrders: [],
-      singleOrder: null,
-      customers: [],
-      products: [],
-    })),
-    []
-  );
-
+  // ---------------------
+  // Return
+  // ---------------------
   return {
-    ...state,
-    createSingleOrder,
-    getSingleOrder,
-    getAllSingleOrders,
-    updateSingleOrder,
-    deleteSingleOrder,
+    orders,
+    customers,
+    loading,
+    error,
+    formData,
+    setFormData,
+    filters,
+    handleFilterChange,
+    clearFilters,
+    fetchOrders,
     fetchCustomers,
-    fetchProducts,
-    checkMeasurementsExist,
-    clearError,
-    clearOrders,
+    createOrder,
+    updateOrder,
+    deleteOrder,
+    
   };
 };
