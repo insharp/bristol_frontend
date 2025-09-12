@@ -28,7 +28,7 @@ export type CustomerType = "all" | "individual" | "corporate";
 export const useCustomers = (apiEndpoint?: string) => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedType, setSelectedType] = useState<CustomerType>("all");
+  const [selectedType, setSelectedType] = useState<CustomerType>("individual");
 
   // Use custom endpoint or default
   const baseUrl = apiEndpoint || 

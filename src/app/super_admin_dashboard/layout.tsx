@@ -26,7 +26,7 @@ export default function SuperAdminLayout({
         </div>
         
         {/* Main Content - Scrollable */}
-        <main className="flex-1 p-4 overflow-y-auto bg-white">
+        <main className="flex-1 p-4  bg-white overflow-hidden">
           {children}
         </main>
       </div>

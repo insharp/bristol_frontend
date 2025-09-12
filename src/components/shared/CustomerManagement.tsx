@@ -1,10 +1,11 @@
-//components/shared/CustomerManagement.tsx
 "use client";
 import React, { useEffect, useState } from "react";
 import Button from "@/components/ui/button";
 import ReusableTable from "@/components/ui/ReusableTable";
-import SlideModal from "@/components/ui/SlideModal";
 import { useCustomers, Customer, CustomerType } from "@/app/hooks/useCustomers";
+import MessageModal from "@/components/ui/ErrorMessageModal"
+import CustomerTypeFilter from "@/components/Filter/CustomerTypeFilter";
+import CustomerForm from "@/components/forms/CustomerForm";
 
 
 interface CustomerManagementProps {
@@ -16,7 +17,6 @@ interface CustomerManagementProps {
     canDelete?: boolean;
     canView?: boolean;
   };
-
   customActions?: Array<{
     label: string;
     icon: React.ReactNode;
@@ -24,63 +24,6 @@ interface CustomerManagementProps {
     className?: string;
   }>;
 }
-
-
-// Message Modal Component (same as before)
-const MessageModal = ({ 
-  isOpen, 
-  onClose, 
-  type, 
-  title, 
-  message 
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  type: 'success' | 'error';
-  title: string;
-  message: string;
-}) => {
-  if (!isOpen) return null;
-  
-  
-  return (
-    <div className="fixed inset-0 bg-blue-50/70 bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
-        <div className="p-6">
-          <div className="flex items-center mb-4">
-            {type === 'success' ? (
-              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-3">
-                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-            ) : (
-              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
-                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </div>
-            )}
-            <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-          </div>
-          <p className="text-gray-600 mb-6">{message}</p>
-          <div className="flex justify-end">
-            <Button
-              onClick={onClose}
-              className={`${
-                type === 'success' 
-                  ? 'bg-green-600 hover:bg-green-700' 
-                  : 'bg-red-600 hover:bg-red-700'
-              } text-white`}
-            >
-              OK
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const CustomerManagement: React.FC<CustomerManagementProps> = ({
   title = "Customers",
@@ -105,7 +48,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
   } = useCustomers(apiEndpoint);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit" | "view">("create");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [formData, setFormData] = useState({
@@ -150,7 +93,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
     setMessageModal({ ...messageModal, isOpen: false });
   };
 
-  // Validation logic (same as before)
+  // Validation logic
   const validateForm = () => {
     const errors = {
       email: '',
@@ -250,13 +193,6 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
     return customers.filter(customer => customer.customer_type === type).length;
   };
 
-  // Type filter options
-  const typeFilters = [
-    { key: "all" as CustomerType, label: "All Customers", count: getCustomerCount("all") },
-    { key: "individual" as CustomerType, label: "Individual", count: getCustomerCount("individual") },
-    { key: "corporate" as CustomerType, label: "Corporate", count: getCustomerCount("corporate") },
-  ];
-
   // Dynamic table columns
   const getColumns = () => {
     const baseColumns: Array<{
@@ -281,12 +217,12 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
     }
 
     baseColumns.push(
-      { key: "email", label: "Email", minWidth: "200px" },
-      { key: "phone_number", label: "Phone Number", width: "150px" },
+      { key: "email", label: "Email" },
+      { key: "phone_number", label: "Phone Number"},
       {
         key: "customer_type",
         label: "Type",
-        width: "100px",
+        
         render: (value: any) => {
           const typeColors: Record<string, string> = {
             individual: "bg-blue-100 text-blue-800",
@@ -306,7 +242,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
     );
 
     if (selectedType === "corporate" || selectedType === "all") {
-      baseColumns.push({ key: "delivery_address", label: "Delivery Address", minWidth: "200px" });
+      baseColumns.push({ key: "delivery_address", label: "Delivery Address" });
     }
 
     return baseColumns;
@@ -358,7 +294,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
           setSelectedCustomer(customer);
           setFormDataFromCustomer(customer);
           setModalMode("view");
-          setIsModalOpen(true);
+          setIsFormOpen(true);
         },
       });
     }
@@ -375,7 +311,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
           setSelectedCustomer(customer);
           setFormDataFromCustomer(customer);
           setModalMode("edit");
-          setIsModalOpen(true);
+          setIsFormOpen(true);
         },
       });
     }
@@ -404,8 +340,8 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
   };
 
 
-  // Modal handlers
-  const openCreateModal = () => {
+  // Form handlers
+  const openCreateForm = () => {
     if (!permissions.canCreate) return;
     
     setSelectedCustomer(null);
@@ -428,11 +364,11 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
       delivery_address: ''
     });
     setModalMode("create");
-    setIsModalOpen(true);
+    setIsFormOpen(true);
   };
 
-  const closeModal = () => {
-    setIsModalOpen(false);
+  const closeForm = () => {
+    setIsFormOpen(false);
     setSelectedCustomer(null);
     setFormErrors({
       email: '',
@@ -448,7 +384,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
   const handleCreateCustomer = async () => {
     const result = await createCustomer(formData);
     if (result.success) {
-      closeModal();
+      closeForm();
       const name = formData.customer_type === 'individual' ? formData.customer_name : formData.company_name;
       showSuccessMessage('Success!', `Customer "${name}" has been created successfully.`);
     } else {
@@ -460,7 +396,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
     if (!selectedCustomer) return;
     const result = await updateCustomer(selectedCustomer.id, formData);
     if (result.success) {
-      closeModal();
+      closeForm();
       const name = formData.customer_type === 'individual' ? formData.customer_name : formData.company_name;
       showSuccessMessage('Success!', `Customer "${name}" has been updated successfully.`);
     } else {
@@ -497,7 +433,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
     }
   };
 
-  const getModalTitle = () => {
+  const getFormTitle = () => {
     switch (modalMode) {
       case "create": return "Add New Customer";
       case "edit": return "Edit Customer";
@@ -521,15 +457,14 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
   };
 
   return (
-
-    <div className="h-screen flex flex-col overflow-hidden">
-      <main className="flex-1 p-8 bg-blue-50/40 rounded-2xl flex flex-col overflow-hidden">
+    <div className="h-150 flex flex-col overflow-hidden ">
+      <main className="flex-1 p-8 bg-blue-50/50 rounded-2xl flex flex-col overflow-hidden">
         {/* Fixed Header Section */}
         <div className="flex-shrink-0 mb-6">
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+            <h1 className="text-2xl font-bold text-blue-600">{title}</h1>
             {permissions.canCreate && (
-              <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700">
+              <Button onClick={openCreateForm} className="bg-blue-600 hover:bg-blue-700">
                 + Add Customer
               </Button>
             )}
@@ -538,28 +473,11 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
           {/* Filter and Search Section */}
           <div className="mb-0 flex items-center justify-between gap-6">
             {/* Type Filter Tabs */}
-            <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg">
-              {typeFilters.map((filter) => (
-                <button
-                  key={filter.key}
-                  onClick={() => setSelectedType(filter.key)}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                    selectedType === filter.key
-                      ? "bg-white text-blue-600 shadow-sm"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                  }`}
-                >
-                  {filter.label}
-                  {/* <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${
-                    selectedType === filter.key
-                      ? "bg-blue-100 text-blue-600"
-                      : "bg-gray-200 text-gray-600"
-                  }`}>
-                    {filter.count}
-                  </span> */}
-                </button>
-              ))}
-            </div>
+            <CustomerTypeFilter
+              selectedType={selectedType}
+              onTypeChange={setSelectedType}
+              getCustomerCount={getCustomerCount}
+            />
 
             {/* Search Bar */}
             <div className="relative">
@@ -570,10 +488,10 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
               </div>
               <input
                 type="text"
-                placeholder="Search customers..."
+                placeholder="Search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-80"
+                className="pl-10 pr-4 py-2 border border-gray-400 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-80"
               />
               {searchQuery && (
                 <button
@@ -589,6 +507,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
           </div>
         </div>
 
+
         {/* Flexible Table Container */}
         <div className="flex-1 min-h-0">
           <ReusableTable
@@ -596,163 +515,27 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
             columns={getColumns()}
             actions={getActions()}
             loading={loading}
+            
             emptyMessage={
-              selectedType === "all" 
+              selectedType === "individual" 
                 ? "No customers found." 
                 : `No ${selectedType} customers found.`
             }
           />
         </div>
 
-        <SlideModal isOpen={isModalOpen} onClose={closeModal} title={getModalTitle()}>
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
-            {/* Customer Type Selection */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Customer Type *</label>
-              <select
-                value={formData.customer_type}
-                onChange={(e) => handleCustomerTypeChange(e.target.value as "individual" | "corporate")}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                disabled={modalMode === "view"}
-                required
-              >
-                <option value="individual">Individual</option>
-                <option value="corporate">Corporate</option>
-              </select>
-            </div>
-
-            {/* Individual Customer Fields */}
-            {formData.customer_type === 'individual' && (
-              <div>
-                <label className="block text-sm font-medium mb-2">Customer Name *</label>
-                <input
-                  type="text"
-                  value={formData.customer_name}
-                  onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
-                  className={`w-full px-3 py-2 border rounded-lg ${
-                    formErrors.customer_name ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                  } focus:outline-none focus:ring-2`}
-                  readOnly={modalMode === "view"}
-                  required
-                />
-                {formErrors.customer_name && (
-                  <p className="mt-1 text-sm text-red-600">{formErrors.customer_name}</p>
-                )}
-              </div>
-            )}
-
-            {/* Corporate Customer Fields */}
-            {formData.customer_type === 'corporate' && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Company Name *</label>
-                  <input
-                    type="text"
-                    value={formData.company_name}
-                    onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-lg ${
-                      formErrors.company_name ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                    } focus:outline-none focus:ring-2`}
-                    readOnly={modalMode === "view"}
-                    required
-                  />
-                  {formErrors.company_name && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.company_name}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">Contact Person *</label>
-                  <input
-                    type="text"
-                    value={formData.contact_person}
-                    onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-lg ${
-                      formErrors.contact_person ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                    } focus:outline-none focus:ring-2`}
-                    readOnly={modalMode === "view"}
-                    required
-                  />
-                  {formErrors.contact_person && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.contact_person}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">Delivery Address *</label>
-                  <textarea
-                    value={formData.delivery_address}
-                    onChange={(e) => setFormData({ ...formData, delivery_address: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-lg ${
-                      formErrors.delivery_address ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                    } focus:outline-none focus:ring-2`}
-                    rows={3}
-                    readOnly={modalMode === "view"}
-                    required
-                  />
-                  {formErrors.delivery_address && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.delivery_address}</p>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* Common Fields */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Email *</label>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className={`w-full px-3 py-2 border rounded-lg ${
-                  formErrors.email ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                } focus:outline-none focus:ring-2`}
-                readOnly={modalMode === "view"}
-                required
-              />
-              {formErrors.email && (
-                <p className="mt-1 text-sm text-red-600">{formErrors.email}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Phone Number *</label>
-              <input
-                type="tel"
-                value={formData.phone_number}
-                onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
-                className={`w-full px-3 py-2 border rounded-lg ${
-                  formErrors.phone_number ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                } focus:outline-none focus:ring-2`}
-                readOnly={modalMode === "view"}
-                required
-              />
-              {formErrors.phone_number && (
-                <p className="mt-1 text-sm text-red-600">{formErrors.phone_number}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Special Notes</label>
-              <textarea
-                value={formData.special_notes}
-                onChange={(e) => setFormData({ ...formData, special_notes: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                rows={3}
-                readOnly={modalMode === "view"}
-                placeholder="Any additional notes about the customer..."
-              />
-            </div>
-
-            {modalMode !== "view" && (
-              <div className="flex justify-end pt-4">
-                <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                  {modalMode === "create" ? "Create Customer" : "Update Customer"}
-                </Button>
-              </div>
-            )}
-          </form>
-        </SlideModal>
+        {/* Sliding Customer Form */}
+        <CustomerForm
+          isOpen={isFormOpen}
+          title={getFormTitle()}
+          formData={formData}
+          formErrors={formErrors}
+          modalMode={modalMode}
+          onClose={closeForm}
+          onFormDataChange={setFormData}
+          onCustomerTypeChange={handleCustomerTypeChange}
+          onSubmit={handleSubmit}
+        />
 
         {/* Message Modal */}
         <MessageModal
@@ -765,9 +548,6 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
       </main>
     </div>
   );
-
-  
 };
-
 
 export default CustomerManagement;

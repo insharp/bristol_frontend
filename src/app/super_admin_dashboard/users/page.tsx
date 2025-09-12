@@ -69,6 +69,7 @@ const MessageModal = ({
   );
 };
 
+
 const UsersPage = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -418,7 +419,7 @@ const UsersPage = () => {
     <div className="flex">
       <main className="flex-1 p-8 bg-blue-50/40 rounded-2xl">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Users</h1>
+          <h1 className="text-2xl font-bold text-blue-500">Users</h1>
           <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700">
             + Add User
           </Button>
