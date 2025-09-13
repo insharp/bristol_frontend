@@ -76,9 +76,10 @@ export const useMeasurementField = (apiEndpoint?: string) => {
     try {
       const response = await fetch(`${baseUrl}/bulk`, {
         method: 'POST',
+        credentials: "include",
         headers: {
           'Content-Type': 'application/json',
-          credentials: "include"
+          
         },
 
         body: JSON.stringify(measurementFieldData),
@@ -118,6 +119,7 @@ export const useMeasurementField = (apiEndpoint?: string) => {
     setLoading(true);
     try {
       const response = await fetch(`${baseUrl}/${id}`, {
+        credentials: "include",
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -154,6 +156,7 @@ export const useMeasurementField = (apiEndpoint?: string) => {
     setLoading(true);
     try {
       const response = await fetch(`${baseUrl}/${id}`, {
+        credentials: "include",
         method: 'DELETE',
       });
 

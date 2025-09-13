@@ -24,6 +24,19 @@ interface AppointmentManagementProps {
   }>;
 }
 
+  const getCustomerDisplayName = (customer: any) => {
+    if (!customer) return 'Unknown Customer';
+    
+    // Handle different possible field names and null values
+    const name = customer.name || customer.customer_name || customer.full_name || customer.first_name;
+    
+    if (!name || name === 'null' || name.trim() === '') {
+      return `Customer #${customer.id || 'Unknown'}`;
+    }
+    
+    return name.toString().trim();
+  };
+
 // Message Modal Component
 const MessageModal = ({
   isOpen,
@@ -313,7 +326,10 @@ const columns = [
     minWidth: "180px",
     render: (value: any, row: Appointment) => {
       const customer = customers.find(c => Number(c.id) === Number(row.customer_id));
-      const customerName = value || customer?.name || `Customer ${row.customer_id}`;
+      const customerName = getCustomerDisplayName({
+        name: value || customer?.name,
+        id: row.customer_id
+      });
       return <span className="font-medium">{customerName}</span>;
     },
   },
