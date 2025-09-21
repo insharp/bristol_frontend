@@ -24,18 +24,23 @@ interface AppointmentManagementProps {
   }>;
 }
 
-  const getCustomerDisplayName = (customer: any) => {
-    if (!customer) return 'Unknown Customer';
-    
-    // Handle different possible field names and null values
-    const name = customer.name || customer.customer_name || customer.full_name || customer.first_name;
-    
-    if (!name || name === 'null' || name.trim() === '') {
-      return `Customer #${customer.id || 'Unknown'}`;
-    }
-    
-    return name.toString().trim();
-  };
+const getCustomerDisplayName = (customer: any) => {
+  if (!customer) return 'Unknown Customer';
+  
+  // Handle different possible field names and null values
+  const name = customer.name || 
+               customer.customer_name || 
+               customer.full_name || 
+               customer.first_name ||
+               customer.customer_name;
+  
+  // Check for null, empty, or "null" string values
+  if (!name || name === 'null' || name.toString().trim() === '' || name.toString().toLowerCase() === 'null') {
+    return `Customer #${customer.id || 'Unknown'}`;
+  }
+  
+  return name.toString().trim();
+};
 
 // Message Modal Component
 const MessageModal = ({
@@ -92,6 +97,77 @@ const MessageModal = ({
   );
 };
 
+// Delete Confirmation Modal Component
+const DeleteConfirmationModal = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  appointmentInfo,
+  loading = false
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  appointmentInfo: { customerName: string; appointmentType: string; date: string; time: string };
+  loading?: boolean;
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-blue-50/70 bg-opacity-50 flex items-center justify-center z-60">
+      <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full relative">
+        <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+          <div className="sm:flex sm:items-start">
+            <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+              <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+            <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+              <h3 className="text-lg leading-6 font-medium text-gray-900">
+                Delete Appointment
+              </h3>
+              <div className="mt-2">
+                <p className="text-sm text-gray-500">
+                  Are you sure you want to delete the {appointmentInfo.appointmentType} appointment for "{appointmentInfo.customerName}" scheduled on {appointmentInfo.date} at {appointmentInfo.time}? This action cannot be undone.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={loading}
+            className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Cancelling...
+              </>
+            ) : (
+              'Delete'
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
   title = "Appointments",
   apiEndpoint,
@@ -115,6 +191,8 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
     handleFilterChange,
     clearFilters,
     fetchAppointments,
+    fetchCustomers,
+    fetchOrders,
     createAppointment,
     updateAppointment,
     deleteAppointment,
@@ -137,6 +215,19 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
     type: 'success' as 'success' | 'error',
     title: '',
     message: ''
+  });
+
+  // Delete Modal State
+  const [deleteModal, setDeleteModal] = useState({
+    isOpen: false,
+    appointmentId: 0,
+    appointmentInfo: {
+      customerName: '',
+      appointmentType: '',
+      date: '',
+      time: ''
+    },
+    isDeleting: false
   });
 
   // Form Validation State
@@ -234,13 +325,34 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
     }
   }, [formData]);
 
-  // Initial fetch
+  // Initial fetch - Updated to handle potential errors from data fetching
   useEffect(() => {
-    fetchAppointments().then(result => {
-      if (!result.success) {
-        showErrorMessage('Fetch Error', result.error || 'Failed to load appointments');
+    const loadInitialData = async () => {
+      try {
+        // Fetch appointments
+        const appointmentsResult = await fetchAppointments();
+        if (!appointmentsResult.success) {
+          showErrorMessage('Fetch Error', appointmentsResult.error || 'Failed to load appointments');
+        }
+
+        // Fetch customers with error handling
+        const customersResult = await fetchCustomers();
+        if (!customersResult.success) {
+          showErrorMessage('Fetch Error', customersResult.error || 'Failed to load customers');
+        }
+
+        // Fetch orders with error handling
+        const ordersResult = await fetchOrders();
+        if (!ordersResult.success) {
+          showErrorMessage('Fetch Error', ordersResult.error || 'Failed to load orders');
+        }
+      } catch (error) {
+        console.error('Error loading initial data:', error);
+        showErrorMessage('Loading Error', 'Failed to load application data');
       }
-    });
+    };
+
+    loadInitialData();
   }, []);
 
   // Clear date filter when switching to today tab
@@ -299,6 +411,117 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
   // Clear date filter function
   const clearDateFilter = () => {
     setDateFilter("");
+  };
+
+  // Helper function to format appointment info for delete modal
+  const getAppointmentInfo = (appointment: Appointment) => {
+    const customer = customers.find(c => Number(c.id) === Number(appointment.customer_id));
+    const customerName = appointment.customer_name || customer?.name || `Customer ${appointment.customer_id}`;
+    
+    const date = new Date(appointment.appointment_date);
+    const formattedDate = date.toLocaleDateString("en-US", {
+      month: "2-digit",
+      day: "2-digit",
+      year: "numeric",
+    });
+
+    const [hours, minutes] = appointment.appointment_time.split(":");
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? "PM" : "AM";
+    const displayHour = hour % 12 || 12;
+    const formattedTime = `${displayHour}:${minutes} ${ampm}`;
+
+    return {
+      customerName,
+      appointmentType: appointment.appointment_type,
+      date: formattedDate,
+      time: formattedTime
+    };
+  };
+
+  // Handler to open delete modal from table action
+  const handleDeleteClick = (appointment: Appointment) => {
+    const appointmentInfo = getAppointmentInfo(appointment);
+    setDeleteModal({
+      isOpen: true,
+      appointmentId: appointment.id,
+      appointmentInfo,
+      isDeleting: false
+    });
+  };
+
+  // Handler to open delete modal from view modal
+  const handleDeleteFromView = () => {
+    if (!permissions.canDelete || !selectedAppointment) return;
+    
+    const appointmentInfo = getAppointmentInfo(selectedAppointment);
+    setDeleteModal({
+      isOpen: true,
+      appointmentId: selectedAppointment.id,
+      appointmentInfo,
+      isDeleting: false
+    });
+  };
+
+  // Handler to confirm deletion
+  const handleConfirmDelete = async () => {
+    setDeleteModal(prev => ({ ...prev, isDeleting: true }));
+    
+    try {
+      const result = await deleteAppointment(deleteModal.appointmentId);
+      if (result.success) {
+        // Close both modals and clear selected appointment
+        setDeleteModal({
+          isOpen: false,
+          appointmentId: 0,
+          appointmentInfo: {
+            customerName: '',
+            appointmentType: '',
+            date: '',
+            time: ''
+          },
+          isDeleting: false
+        });
+        setIsModalOpen(false);
+        setSelectedAppointment(null);
+        
+        // Show success message after a brief delay
+        setTimeout(() => {
+          showSuccessMessage('Success!', `Appointment for "${deleteModal.appointmentInfo.customerName}" has been deleted successfully.`);
+        }, 100);
+        
+        // Refresh appointments
+        await fetchAppointments();
+      } else {
+        showErrorMessage('Cancellation Failed', result.error || 'Failed to cancel appointment');
+        
+        // Reset deleting state but keep modal open
+        setDeleteModal(prev => ({ ...prev, isDeleting: false }));
+      }
+    } catch (error) {
+      console.error('Failed to cancel appointment:', error);
+      showErrorMessage('Cancellation Failed', 'Failed to cancel appointment. Please try again.');
+      
+      // Reset deleting state but keep modal open
+      setDeleteModal(prev => ({ ...prev, isDeleting: false }));
+    }
+  };
+
+  // Handler to close delete modal
+  const handleCloseDeleteModal = () => {
+    if (deleteModal.isDeleting) return; // Prevent closing while deleting
+    
+    setDeleteModal({
+      isOpen: false,
+      appointmentId: 0,
+      appointmentInfo: {
+        customerName: '',
+        appointmentType: '',
+        date: '',
+        time: ''
+      },
+      isDeleting: false
+    });
   };
 
 const columns = [
@@ -362,9 +585,7 @@ const columns = [
       return <span>{`${displayHour}:${minutes} ${ampm}`}</span>;
     },
   },
- 
 ];
-
 
   // Helper function to set form data from appointment
   const setFormDataFromAppointment = (appointment: Appointment) => {
@@ -427,19 +648,14 @@ const columns = [
 
     if (permissions.canDelete) {
       defaultActions.push({
-        label: "Cancel",
+        label: "Delete",
         icon: (
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1-1H9a1 1 0 00-1 1v3M4 7h16" />
           </svg>
         ),
         onClick: (appointment: Appointment) => {
-          const customer = customers.find(c => Number(c.id) === Number(appointment.customer_id));
-          const customerName = appointment.customer_name || customer?.name || `Customer ${appointment.customer_id}`;
-          
-          if (window.confirm(`Are you sure you want to cancel the appointment for "${customerName}"?`)) {
-            handleDeleteAppointment(appointment.id, customerName);
-          }
+          handleDeleteClick(appointment);
         },
         className: "text-red-600 hover:bg-red-50",
       });
@@ -536,20 +752,6 @@ const columns = [
     } catch (error) {
       console.error('Update appointment exception:', error);
       showErrorMessage('Update Failed', 'An unexpected error occurred while updating the appointment');
-    }
-  };
-
-  const handleDeleteAppointment = async (appointmentId: number, customerName: string) => {
-    try {
-      const result = await deleteAppointment(appointmentId);
-      if (result.success) {
-        showSuccessMessage('Success!', `Appointment for "${customerName}" has been cancelled.`);
-        await fetchAppointments();
-      } else {
-        showErrorMessage('Cancellation Failed', result.error || 'Failed to cancel appointment');
-      }
-    } catch (error) {
-      showErrorMessage('Cancellation Failed', 'An unexpected error occurred while cancelling the appointment');
     }
   };
 
@@ -689,39 +891,36 @@ const columns = [
             columns={columns}
             actions={getActions()}
             loading={loading}
-            emptyMessage="No appointments found."
+            emptyMessage='No appointments found. Click "Add Appointment" to get started.'
           />
         </div>
 
         <SlideModal isOpen={isModalOpen} onClose={closeModal} title={getModalTitle()}>
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
-            {/* Customer Selection */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Customer *</label>
-              <select
-                value={formData.customer_id}
-                onChange={(e) => setFormData({ ...formData, customer_id: e.target.value })}
-                className={`w-full px-3 py-2 border rounded-lg ${
-                  formErrors.customer_id ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                } focus:outline-none focus:ring-2`}
-                disabled={modalMode === "view"}
-                required
-              >
-                <option value="">Select Customer</option>
-                {customers
-                  .filter((customer, index, self) => 
-                    index === self.findIndex(c => c.name.toLowerCase().trim() === customer.name.toLowerCase().trim())
-                  )
-                  .map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.name}
-                    </option>
-                  ))}
-              </select>
-              {formErrors.customer_id && (
-                <p className="mt-1 text-sm text-red-600">{formErrors.customer_id}</p>
-              )}
-            </div>
+
+         {/* Customer Selection */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Customer ID *</label>
+            <select
+              value={formData.customer_id}
+              onChange={(e) => setFormData({ ...formData, customer_id: e.target.value })}
+              className={`w-full px-3 py-2 border rounded-lg ${
+                formErrors.customer_id ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+              } focus:outline-none focus:ring-2`}
+              disabled={modalMode === "view"}
+              required
+            >
+              <option value="">Select Customer ID</option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.id} - {getCustomerDisplayName(customer)}
+                </option>
+              ))}
+            </select>
+            {formErrors.customer_id && (
+              <p className="mt-1 text-sm text-red-600">{formErrors.customer_id}</p>
+            )}
+          </div>
             {/* Order Selection */}
             <div>
               <label className="block text-sm font-medium mb-2">Order *</label>
@@ -735,11 +934,13 @@ const columns = [
                 required
               >
                 <option value="">Select Order</option>
-                {orders.map((order) => (
-                  <option key={order.id} value={order.id}>
-                    {order.order_number}
-                  </option>
-                ))}
+                {orders.map((order) => {
+                  return (
+                    <option key={order.id} value={order.id}>
+                      {order.order_number}
+                    </option>
+                  );
+                })}
               </select>
               {formErrors.order_id && (
                 <p className="mt-1 text-sm text-red-600">{formErrors.order_id}</p>
@@ -829,18 +1030,7 @@ const columns = [
                   {permissions.canDelete && (
                     <Button 
                       type="button"
-                      onClick={() => {
-                        if (!selectedAppointment) return;
-                        
-                        const customer = customers.find(c => Number(c.id) === Number(selectedAppointment.customer_id));
-                        const customerName = selectedAppointment.customer_name || customer?.name || `Customer ${selectedAppointment.customer_id}`;
-                        
-                        if (window.confirm(`Are you sure you want to delete the appointment for "${customerName}"?`)) {
-                          console.log('Deleting appointment from view modal');
-                          setIsModalOpen(false);
-                          handleDeleteAppointment(selectedAppointment.id, customerName);
-                        }
-                      }}
+                      onClick={handleDeleteFromView}
                       className="bg-red-600 hover:bg-red-700 text-white"
                     >
                       Delete
@@ -890,6 +1080,15 @@ const columns = [
           type={messageModal.type}
           title={messageModal.title}
           message={messageModal.message}
+        />
+
+        {/* Delete Confirmation Modal */}
+        <DeleteConfirmationModal
+          isOpen={deleteModal.isOpen}
+          onClose={handleCloseDeleteModal}
+          onConfirm={handleConfirmDelete}
+          appointmentInfo={deleteModal.appointmentInfo}
+          loading={deleteModal.isDeleting}
         />
       </main>
     </div>

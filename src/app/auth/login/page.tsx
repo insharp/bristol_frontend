@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import Image from "next/image"; // Import Next.js Image component
 
 export default function LoginPage() {
   const BACKEND_HOST = process.env.NEXT_PUBLIC_BACKEND_HOST;
@@ -15,6 +16,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
+  const [imageKey, setImageKey] = useState(Date.now()); // Add cache-busting key
   const router = useRouter();
 
   useEffect(() => {
@@ -28,7 +30,7 @@ export default function LoginPage() {
         if (res.ok) {
           const data = await res.json();
           if (data?.data?.role === "admin") {
-            router.replace("/admin_dashboard/overview");
+            router.replace("/admin_dashboard/customer");
           } else if (data?.data?.role === "superadmin") {
             router.replace("/super_admin_dashboard/customer");
           }
@@ -38,6 +40,9 @@ export default function LoginPage() {
       }
     };
     checkSession();
+
+    // Refresh image key every time component mounts
+    setImageKey(Date.now());
   }, [router]);
 
   const validate = () => {
@@ -75,7 +80,7 @@ export default function LoginPage() {
       console.log(data);
       if (res.ok) {
         if (data.data.role === "admin") {
-          router.push("/admin_dashboard/overview");
+          router.push("/admin_dashboard/customer");
         } else if (data.data.role === "superadmin") {
           router.push("/super_admin_dashboard/customer");
         } else {
@@ -99,11 +104,17 @@ export default function LoginPage() {
         
            <div className="flex items-center">
               <div className="w-8 h-8 mr-3 flex items-center justify-center">
-                <img
+                {/* Option 1: Using Next.js Image component (recommended) */}
+                <Image
                   src="/images/logo.png"
                   alt="Bristol Tailors Logo"
+                  width={32}
+                  height={32}
                   className="w-full h-full object-contain"
+                  priority // Ensures the logo loads immediately
+                  unoptimized // Prevents Next.js optimization if causing issues
                 />
+              
               </div>
               <span className="text-xl font-bold text-blue-500">Bristol Tailors</span>
             </div>
@@ -195,14 +206,18 @@ export default function LoginPage() {
 
         {/* Right side - Background Image */}
         <div className="hidden md:block md:w-1/2 relative overflow-hidden">
-          <img
+          {/* Option 1: Using Next.js Image component (recommended) */}
+          <Image
             src="/images/login_background.png"
             alt="Background"
-            className="absolute inset-0 w-full h-full object-cover rounded-4xl"
+            fill
+            className="object-cover rounded-4xl"
+            priority
+            sizes="50vw"
+            unoptimized
           />
-{/*           
-          {/* Optional overlay for better text contrast if needed */}
-          {/* <div className="absolute inset-0 bg-gradient-to-br from-blue-400/10 via-transparent to-blue-600/10"></div> */} 
+          
+          
         </div>
       </div>
     </div>

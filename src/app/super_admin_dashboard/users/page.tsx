@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import Button from "@/components/ui/button";
 import ReusableTable from "@/components/ui/ReusableTable";
 import SlideModal from "@/components/ui/SlideModal";
+import { Trash2 } from "lucide-react";
 
 interface User {
   id: string;
@@ -75,8 +76,12 @@ const UsersPage = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRole, setSelectedRole] = useState<UserRole>("all");
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<"create" | "edit" | "view">("create");
+  
+  // Separate modal states for each modal type
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [formData, setFormData] = useState({
     username: "",
@@ -84,6 +89,10 @@ const UsersPage = () => {
     password: "",
     role: "admin"
   });
+
+  // Delete confirmation modal state
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
   // Message Modal State
   const [messageModal, setMessageModal] = useState({
@@ -125,6 +134,42 @@ const UsersPage = () => {
     setMessageModal({ ...messageModal, isOpen: false });
   };
 
+  // Function to switch from view to edit mode (like in ProductManagement)
+  const handleEditFromView = () => {
+    if (!selectedUser) return;
+    setIsViewModalOpen(false);
+    setTimeout(() => {
+      setIsEditModalOpen(true);
+    }, 100);
+  };
+
+  // Function to initiate delete from view modal
+  const handleDeleteFromView = () => {
+    if (selectedUser) {
+      setUserToDelete(selectedUser);
+      setIsDeleteModalOpen(true);
+    }
+  };
+
+  // New function to confirm deletion
+  const confirmDelete = async () => {
+    if (!userToDelete) return;
+
+    try {
+      await deleteUser(userToDelete.id);
+      setIsDeleteModalOpen(false);
+      setUserToDelete(null);
+      // If the delete was triggered from the view modal, close it too
+      if (selectedUser && selectedUser.id === userToDelete.id) {
+        setIsViewModalOpen(false);
+        setSelectedUser(null);
+      }
+    } catch (err) {
+      console.error(`Failed to delete user:`, err);
+      showErrorMessage('Deletion Failed', 'Failed to delete user. Please try again.');
+    }
+  };
+
   // Form Validation
   const validateForm = () => {
     const errors = {
@@ -149,7 +194,7 @@ const UsersPage = () => {
     }
 
     // Password validation (only for create mode)
-    if (modalMode === 'create') {
+    if (isCreateModalOpen) {
       if (!formData.password.trim()) {
         errors.password = 'Password is required';
       } else if (formData.password.length < 6) {
@@ -167,7 +212,6 @@ const UsersPage = () => {
       setFormErrors({ username: '', email: '', password: '' });
     }
   }, [formData]);
-
 
   // Fetch users
   useEffect(() => {
@@ -254,9 +298,13 @@ const UsersPage = () => {
       ),
       onClick: (user: User) => {
         setSelectedUser(user);
-        setFormData({ username: user.username, email: user.email, password: "", role: user.role });
-        setModalMode("view");
-        setIsModalOpen(true);
+        setFormData({ 
+          username: user.username, 
+          email: user.email, 
+          password: "", 
+          role: user.role 
+        });
+        setIsViewModalOpen(true);
       },
     },
     {
@@ -268,9 +316,13 @@ const UsersPage = () => {
       ),
       onClick: (user: User) => {
         setSelectedUser(user);
-        setFormData({ username: user.username, email: user.email, password: "", role: user.role });
-        setModalMode("edit");
-        setIsModalOpen(true);
+        setFormData({ 
+          username: user.username, 
+          email: user.email, 
+          password: "", 
+          role: user.role 
+        });
+        setIsEditModalOpen(true);
       },
     },
     {
@@ -281,9 +333,8 @@ const UsersPage = () => {
         </svg>
       ),
       onClick: (user: User) => {
-        if (window.confirm(`Are you sure you want to delete user "${user.username}"?`)) {
-          deleteUser(user.id);
-        }
+        setUserToDelete(user);
+        setIsDeleteModalOpen(true);
       },
       className: "text-red-600 hover:bg-red-50",
     },
@@ -294,14 +345,24 @@ const UsersPage = () => {
     setSelectedUser(null);
     setFormData({ username: "", email: "", password: "", role: "admin" });
     setFormErrors({ username: '', email: '', password: '' });
-    setModalMode("create");
-    setIsModalOpen(true);
+    setIsCreateModalOpen(true);
   };
 
-  const closeModal = () => {
-    setIsModalOpen(false);
+  const closeCreateModal = () => {
+    setIsCreateModalOpen(false);
     setSelectedUser(null);
     setFormErrors({ username: '', email: '', password: '' });
+  };
+
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    setSelectedUser(null);
+    setFormErrors({ username: '', email: '', password: '' });
+  };
+
+  const closeViewModal = () => {
+    setIsViewModalOpen(false);
+    setSelectedUser(null);
   };
 
   // CRUD operations
@@ -323,7 +384,7 @@ const UsersPage = () => {
         console.log("Create user response",newUser.user);
 
         setUsers([...users, newUser.user || newUser]);
-        closeModal();
+        closeCreateModal();
         showSuccessMessage('Success!', `User "${formData.username}" has been created successfully.`);
       } else {
         const errorData = await res.json();
@@ -335,9 +396,17 @@ const UsersPage = () => {
     }
   };
 
-
   const updateUser = async () => {
     if (!selectedUser) return;
+    
+    // Prepare the update payload - only include password if it's provided
+    const updatePayload = {
+      username: formData.username,
+      email: formData.email,
+      role: formData.role,
+      ...(formData.password.trim() && { password: formData.password })
+    };
+
     try {
       const res = await fetch(
         `http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}/user/users/${selectedUser.id}`,
@@ -345,17 +414,33 @@ const UsersPage = () => {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify(formData),
+          body: JSON.stringify(updatePayload),
         }
       );
       
       if (res.ok) {
-        const updatedUser = await res.json();
-        setUsers(users.map(u => u.id === selectedUser.id ? { ...u, ...(updatedUser.data || updatedUser) } : u));
-        closeModal();
+        const response = await res.json();
+        console.log("Update user response:", response);
+        
+        // Handle different response structures
+        const updatedUserData = response.data || response.user || response;
+        
+        // Create the updated user object
+        const updatedUser = {
+          id: selectedUser.id,
+          username: formData.username,
+          email: formData.email,
+          role: formData.role
+        };
+        
+        // Update the users array
+        setUsers(users.map(u => u.id === selectedUser.id ? updatedUser : u));
+        
+        closeEditModal();
         showSuccessMessage('Success!', `User "${formData.username}" has been updated successfully.`);
       } else {
         const errorData = await res.json();
+        console.error("Update failed:", errorData);
         showErrorMessage('Update Failed', errorData.message || 'Failed to update user. Please try again.');
       }
     } catch (err) {
@@ -363,8 +448,6 @@ const UsersPage = () => {
       showErrorMessage('Error', 'Unable to update user. Please check your connection and try again.');
     }
   };
-
-
 
   const deleteUser = async (userId: string) => {
     const userToDelete = users.find(u => u.id === userId);
@@ -390,30 +473,25 @@ const UsersPage = () => {
     }
   };
 
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateForm()) {
       return;
     }
 
-    if (modalMode === "create") {
-      createUser();
-    } else if (modalMode === "edit") {
-      updateUser();
-    }
+    createUser();
   };
 
-
-  const getModalTitle = () => {
-    switch (modalMode) {
-      case "create": return "Add New User";
-      case "edit": return "Edit User";
-      case "view": return "View User";
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
     }
-  };
 
+    updateUser();
+  };
 
   return (
     <div className="flex">
@@ -451,7 +529,6 @@ const UsersPage = () => {
             ))}
           </div>
 
-
           {/* Search Bar */}
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -479,7 +556,6 @@ const UsersPage = () => {
           </div>
         </div>
 
-
         <ReusableTable
           data={filteredUsers}
           columns={columns}
@@ -488,9 +564,9 @@ const UsersPage = () => {
           emptyMessage={selectedRole === "all" ? "No users found." : `No ${selectedRole === "superadmin" ? "super admin" : selectedRole} users found.`}
         />
 
-
-        <SlideModal isOpen={isModalOpen} onClose={closeModal} title={getModalTitle()}>
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {/* Create Modal */}
+        <SlideModal isOpen={isCreateModalOpen} onClose={closeCreateModal} title="Add New User">
+          <form onSubmit={handleCreateSubmit} className="p-6 space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2">Username *</label>
               <input
@@ -500,7 +576,6 @@ const UsersPage = () => {
                 className={`w-full px-3 py-2 border rounded-lg ${
                   formErrors.username ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                 } focus:outline-none focus:ring-2`}
-                readOnly={modalMode === "view"}
                 required
               />
               {formErrors.username && (
@@ -517,7 +592,6 @@ const UsersPage = () => {
                 className={`w-full px-3 py-2 border rounded-lg ${
                   formErrors.email ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                 } focus:outline-none focus:ring-2`}
-                readOnly={modalMode === "view"}
                 required
               />
               {formErrors.email && (
@@ -525,28 +599,21 @@ const UsersPage = () => {
               )}
             </div>
 
-            {modalMode !== "view" && (
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Password {modalMode === "create" && "*"}
-                </label>
-                <input
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className={`w-full px-3 py-2 border rounded-lg ${
-                    formErrors.password ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                  } focus:outline-none focus:ring-2`}
-                  required={modalMode === "create"}
-                  placeholder={modalMode === "edit" ? "Leave empty to keep current password" : ""}
-                />
-                {formErrors.password && (
-                  <p className="mt-1 text-sm text-red-600">{formErrors.password}</p>
-                )}
-              </div>
-            )}
-
-
+            <div>
+              <label className="block text-sm font-medium mb-2">Password *</label>
+              <input
+                type="password"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                className={`w-full px-3 py-2 border rounded-lg ${
+                  formErrors.password ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                } focus:outline-none focus:ring-2`}
+                required
+              />
+              {formErrors.password && (
+                <p className="mt-1 text-sm text-red-600">{formErrors.password}</p>
+              )}
+            </div>
 
             <div>
               <label className="block text-sm font-medium mb-2">Role *</label>
@@ -554,24 +621,200 @@ const UsersPage = () => {
                 value={formData.role}
                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                disabled={modalMode === "view"}
                 required
               >
                 <option value="admin">Admin</option>
                 <option value="superadmin">Super Admin</option>
               </select>
             </div>
-            
 
-            {modalMode !== "view" && (
-              <div className="flex justify-end pt-4">
-                <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                  {modalMode === "create" ? "Create User" : "Update User"}
-                </Button>
-              </div>
-            )}
+            <div className="flex justify-end pt-4">
+              <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
+                Create User
+              </Button>
+            </div>
           </form>
         </SlideModal>
+
+        {/* Edit Modal */}
+        <SlideModal isOpen={isEditModalOpen} onClose={closeEditModal} title="Edit User">
+          <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Username *</label>
+              <input
+                type="text"
+                value={formData.username}
+                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                className={`w-full px-3 py-2 border rounded-lg ${
+                  formErrors.username ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                } focus:outline-none focus:ring-2`}
+                required
+              />
+              {formErrors.username && (
+                <p className="mt-1 text-sm text-red-600">{formErrors.username}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Email *</label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className={`w-full px-3 py-2 border rounded-lg ${
+                  formErrors.email ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                } focus:outline-none focus:ring-2`}
+                required
+              />
+              {formErrors.email && (
+                <p className="mt-1 text-sm text-red-600">{formErrors.email}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Password</label>
+              <input
+                type="password"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                className={`w-full px-3 py-2 border rounded-lg ${
+                  formErrors.password ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                } focus:outline-none focus:ring-2`}
+                placeholder="Leave empty to keep current password"
+              />
+              {formErrors.password && (
+                <p className="mt-1 text-sm text-red-600">{formErrors.password}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Role *</label>
+              <select
+                value={formData.role}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                required
+              >
+                <option value="admin">Admin</option>
+                <option value="superadmin">Super Admin</option>
+              </select>
+            </div>
+
+            <div className="flex justify-end pt-4">
+              <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
+                Update User
+              </Button>
+            </div>
+          </form>
+        </SlideModal>
+
+        {/* View Modal with Edit and Delete buttons */}
+        <SlideModal isOpen={isViewModalOpen} onClose={closeViewModal} title="View User">
+          <div className="flex flex-col h-full">
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Username</label>
+                <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                  {formData.username}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Email</label>
+                <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                  {formData.email}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Role</label>
+                <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    formData.role === 'admin' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'
+                  }`}>
+                    {formData.role === 'admin' ? 'Admin' : 'Super Admin'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 bg-white px-6 pb-6">
+              <Button
+                type="button"
+                onClick={handleDeleteFromView}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                Delete
+              </Button>
+              <Button
+                type="button"
+                onClick={handleEditFromView}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Edit
+              </Button>
+            </div>
+          </div>
+        </SlideModal>
+
+        {/* Delete Confirmation Modal */}
+        {isDeleteModalOpen && (
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div 
+              className="fixed inset-0 bg-blue-50/70 bg-opacity-50 transition-opacity"
+              onClick={() => {
+                setIsDeleteModalOpen(false);
+                setUserToDelete(null);
+              }}
+            />
+            <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+              <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">
+                &#8203;
+              </span>
+              <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full relative">
+                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                  <div className="sm:flex sm:items-start">
+                    <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                      <Trash2 className="h-6 w-6 text-red-600" />
+                    </div>
+                    <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                      <h3 className="text-lg leading-6 font-medium text-gray-900">
+                        Delete User
+                      </h3>
+                      <div className="mt-2">
+                        <p className="text-sm text-gray-500">
+                          Are you sure you want to delete user "{userToDelete ? userToDelete.username : 'this user'}"? This action cannot be undone.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                  <button
+                    type="button"
+                    onClick={confirmDelete}
+                    disabled={loading}
+                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed sm:ml-3 sm:w-auto sm:text-sm"
+                  >
+                    {loading ? 'Deleting...' : 'Delete'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDeleteModalOpen(false);
+                      setUserToDelete(null);
+                    }}
+                    className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Message Modal */}
         <MessageModal

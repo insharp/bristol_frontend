@@ -25,6 +25,7 @@ interface ReusableTableProps {
   emptyMessage?: string;
   minColumnWidth?: string; // Default minimum width for columns
   maxHeight?: string; // Optional: set maximum height for vertical scrolling
+  columnSpacing?: 'compact' | 'normal' | 'comfortable'; // New prop for spacing control
 }
 
 const ReusableTable: React.FC<ReusableTableProps> = ({
@@ -35,6 +36,7 @@ const ReusableTable: React.FC<ReusableTableProps> = ({
   emptyMessage = "No data found.",
   minColumnWidth = "160px",
   maxHeight = "350px", // Default max height
+  columnSpacing = 'normal', // Default spacing
 }) => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
@@ -59,146 +61,189 @@ const ReusableTable: React.FC<ReusableTableProps> = ({
       setActiveDropdown(null);
     } else {
       const button = buttonRefs.current[rowId];
-      const container = tableContainerRef.current;
       
-      if (button && container) {
+      if (button) {
         const buttonRect = button.getBoundingClientRect();
         
         setDropdownPosition({
-          top: buttonRect.top + window.scrollY + buttonRect.height + 5,
-          left: buttonRect.left + window.scrollX
+          top: buttonRect.bottom + 5,
+          left: buttonRect.left
         });
       }
       setActiveDropdown(rowId);
     }
   };
 
+  // Get padding classes based on spacing preference
+  const getPaddingClasses = () => {
+    switch (columnSpacing) {
+      case 'compact':
+        return 'px-3 py-3'; // 12px horizontal, 12px vertical
+      case 'comfortable':
+        return 'px-8 py-5'; // 32px horizontal, 20px vertical
+      default:
+        return 'px-6 py-4'; // 24px horizontal, 16px vertical (increased from px-4)
+    }
+  };
+
   // Generate grid template with column widths
   const generateGridTemplate = () => {
     const totalColumns = columns.length;
-    const availableWidth = totalColumns > 0 ? `${(100 - 15) / totalColumns}%` : '1fr'; // Reserve 15% for actions
     
-    let template = columns.map(() => availableWidth).join(' ');
-    template += ' 15%'; // Fixed percentage for actions
+    // Check if any columns have specific width or minWidth
+    const hasSpecificWidths = columns.some(col => col.width || col.minWidth);
     
-    return template;
+    if (hasSpecificWidths) {
+      // Use specified widths where available, auto for others
+      const columnWidths = columns.map(col => {
+        if (col.width) return col.width;
+        if (col.minWidth) return `minmax(${col.minWidth}, 1fr)`;
+        return `minmax(${minColumnWidth}, 1fr)`;
+      });
+      
+      return [...columnWidths, '140px'].join(' '); // Fixed width for actions
+    } else {
+      // Original percentage-based approach but with more space
+      const availableWidth = totalColumns > 0 ? `${(100 - 12) / totalColumns}%` : '1fr'; // Reserve 12% for actions
+      let template = columns.map(() => availableWidth).join(' ');
+      template += ' 12%'; // Fixed percentage for actions
+      return template;
+    }
   };
 
   const gridTemplate = generateGridTemplate();
+  const paddingClasses = getPaddingClasses();
+
+  // Add this function before the return statement
+const getDefaultActionColor = (label: string) => {
+  const lowerLabel = label.toLowerCase();
+  if (lowerLabel.includes('view')) {
+    return 'text-blue-600 hover:bg-blue-50 focus:bg-blue-50';
+  } else if (lowerLabel.includes('edit')) {
+    return 'text-green-600 hover:bg-green-50 focus:bg-green-50';
+  } else if (lowerLabel.includes('delete')) {
+    return 'text-red-600 hover:bg-red-50 focus:bg-red-50';
+  }
+  return 'text-gray-700 hover:bg-gray-100 focus:bg-gray-100';
+};
 
   return (
-    <>
-      {loading ? (
-        <div className="flex justify-center items-center py-8">
-          <div className="animate-pulse">
-            <div className="flex space-x-4">
-              <div className="rounded-full bg-gray-300 h-4 w-4"></div>
-              <div className="flex-1 space-y-2 py-1">
-                <div className="h-4 bg-gray-300 rounded w-3/4"></div>
-                <div className="h-4 bg-gray-300 rounded w-1/2"></div>
-              </div>
+     <>
+    {loading ? (
+      <div className="flex justify-center items-center py-8">
+        <div className="animate-pulse">
+          <div className="flex space-x-4">
+            <div className="rounded-full bg-gray-300 h-4 w-4"></div>
+            <div className="flex-1 space-y-2 py-1">
+              <div className="h-4 bg-gray-300 rounded w-3/4"></div>
+              <div className="h-4 bg-gray-300 rounded w-1/2"></div>
             </div>
           </div>
         </div>
-      ) : (
-        <div 
-          className="bg-white rounded-2xl border border-gray-300 shadow-sm overflow-hidden flex flex-col"
-          style={{ height: maxHeight }}
-        >
-          {/* Fixed Table Header */}
-          <div className="flex-shrink-0 overflow-x-auto">
-            <div 
-              className="grid bg-gray-50 border-b border-gray-400 min-w-max"
-              style={{ gridTemplateColumns: gridTemplate }}
-            >
-              {columns.map((col) => (
-                <div 
-                  key={col.key} 
-                  className="px-4 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap"
-                >
-                  {col.label}
-                </div>
-              ))}
-              <div className="px-4 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">
-                Actions
+      </div>
+    ) : (
+      <div 
+        ref={tableContainerRef}
+        className="bg-white rounded-2xl border border-gray-300 shadow-sm overflow-auto scrollbar-thin scrollbar-track-gray-100 scrollbar-thumb-gray-300 hover:scrollbar-thumb-gray-400"
+        style={{ 
+          height: maxHeight,
+          scrollBehavior: 'smooth',
+          WebkitOverflowScrolling: 'touch'
+        }}
+      >
+        <div className="min-w-max">
+          {/* Header Row - ALWAYS RENDERED */}
+          <div 
+            className="grid bg-gray-50 min-w-max"
+            style={{ gridTemplateColumns: gridTemplate }}
+          >
+            {columns.map((col) => (
+              <div 
+                key={col.key} 
+                className={`${paddingClasses} text-center text-sm font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap`}
+              >
+                {col.label}
               </div>
+            ))}
+            <div className={`${paddingClasses} text-center text-sm font-bold text-gray-500 uppercase tracking-wider`}>
+              Actions
             </div>
           </div>
 
-          {/* Scrollable Table Body */}
-          <div 
-            ref={tableContainerRef}
-            className="flex-1 overflow-auto scrollbar-thin scrollbar-track-gray-100 scrollbar-thumb-gray-300 hover:scrollbar-thumb-gray-400"
-            style={{ 
-              scrollBehavior: 'smooth',
-              WebkitOverflowScrolling: 'touch'
-            }}
-          >
-            {data.length > 0 ? (
-              <div className="min-w-max">
-                {data.map((row, index) => {
-                  const rowId = row.id || `row_${index}`;
-                  return (
+          {/* Data Rows or Empty Message */}
+          {data.length > 0 ? (
+            // Data Rows
+            data.map((row, index) => {
+              const rowId = row.id || `row_${index}`;
+              return (
+                <div 
+                  key={rowId} 
+                  className={`grid hover:bg-gray-50 transition-colors duration-150 ease-in-out ${
+                    index === data.length - 1 ? 'mb-4' : ''
+                  }`}
+                  style={{ gridTemplateColumns: gridTemplate }}
+                >
+                  {columns.map((col) => (
                     <div 
-                      key={rowId} 
-                      className={`grid hover:bg-gray-50 transition-colors duration-150 ease-in-out border-b border-gray-200 last:border-b-0 ${
-                        index === data.length - 1 ? 'mb-4' : ''
-                      }`}
-                      style={{ gridTemplateColumns: gridTemplate }}
+                      key={col.key} 
+                      className={`${paddingClasses} text-center text-sm text-gray-900 break-words bg-white`}
+                      title={col.render ? undefined : String(row[col.key] || '')}
                     >
-                      {columns.map((col) => (
-                        <div 
-                          key={col.key} 
-                          className="px-4 py-4 text-center text-sm text-gray-900 break-words bg-white"
-                          title={col.render ? undefined : String(row[col.key] || '')}
-                        >
-                          <div className="max-w-full">
-                            {col.render ? col.render(row[col.key], row) : (
-                              <span className="line-clamp-2">
-                                {row[col.key] || '-'}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-
-                      <div className="px-4 py-4 text-center bg-white">
-                        <button
-                          ref={(el) => {
-                            if (el) buttonRefs.current[rowId] = el;
-                          }}
-                          onClick={() => toggleDropdown(rowId, row)}
-                          className="p-2 rounded-full hover:bg-gray-100 transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
-                          aria-label="More options"
-                        >
-                          <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                          </svg>
-                        </button>
+                      <div className="max-w-full">
+                        {col.render ? col.render(row[col.key], row) : (
+                          <span className="line-clamp-2">
+                            {row[col.key] || '-'}
+                          </span>
+                        )}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="px-6 py-12 text-center flex flex-col items-center justify-center h-full min-h-[200px]">
+                  ))}
+
+                  <div className={`${paddingClasses} text-center bg-white`}>
+                    <button
+                      ref={(el) => {
+                        if (el) buttonRefs.current[rowId] = el;
+                      }}
+                      onClick={() => toggleDropdown(rowId, row)}
+                      className="p-2 rounded-full hover:bg-gray-100 transition-colors duration-150 ease-in-out focus:outline-none focus:ring-0 focus:border-none focus:shadow-none"
+                      aria-label="More options"
+                    >
+                      <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            // Empty message - spans all columns
+            <div 
+              className="grid"
+              style={{ gridTemplateColumns: gridTemplate }}
+            >
+              <div 
+                className="px-6 py-12 text-center flex flex-col items-center justify-center min-h-[200px]"
+                style={{ gridColumn: `1 / -1` }} // Spans all columns
+              >
                 <div className="text-gray-400 mb-2">
                   <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
+                    </svg>
                 </div>
                 <p className="text-gray-500 text-sm">{emptyMessage}</p>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
+    )}
 
       {/* Dropdown Menu */}
       {activeDropdown && (
         <div
           ref={dropdownRef}
-          className="fixed w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50 animate-in slide-in-from-top-2 duration-200"
+          className="fixed w-32 bg-white rounded-lg shadow-lg border border-gray-200 z-50 animate-in slide-in-from-top-2 duration-200"
           style={{
             top: `${dropdownPosition.top}px`,
             left: `${dropdownPosition.left}px`,
@@ -214,10 +259,11 @@ const ReusableTable: React.FC<ReusableTableProps> = ({
                     if (currentRow) action.onClick(currentRow);
                     setActiveDropdown(null);
                   }}
-                  className={`w-full text-left px-4 py-2 text-sm transition-colors duration-150 ease-in-out ${
-                    action.className || "text-gray-700 hover:bg-gray-100 focus:bg-gray-100"
-                  } focus:outline-none`}
+                  className={`w-full text-left px-3 py-1.5 text-sm transition-colors duration-150 ease-in-out ${
+                  action.className || getDefaultActionColor(action.label)
+                } focus:outline-none`}
                 >
+                  
                   <span className="flex items-center gap-2">
                     {action.icon}
                     {action.label}

@@ -20,12 +20,12 @@ export default function SidebarLayout() {
     }
   };
   const sidebarItems: SidebarItem[] = [
-    { icon: <FaHome />, label: "Overview", href: "/admin_dashboard/overview" },
+    //{ icon: <FaHome />, label: "Overview", href: "/admin_dashboard/overview" },
 
     { icon: <FaUser />, label: "Customers", href: "/admin_dashboard/customer" },
-    { icon: <FaIdBadge />, label: "Measurements", href: "#" },
-        { icon: <FaUpload />, label: "Orders", href: "/admin_dashboard/resources"},
-    { icon: <FaFolderOpen />, label: "Appointments", href: "#" },
+    { icon: <FaIdBadge />, label: "Measurements", href: "/admin_dashboard/measurement" },
+      { icon: <FaUpload />, label: "Orders", href: "/admin_dashboard/order"},
+    { icon: <FaFolderOpen />, label: "Appointments", href: "/admin_dashboard/appointment" },
     { icon: <FaQuestionCircle />, label: "Products", href: "/admin_dashboard/product" },
     { icon: <FaSignOutAlt />, label: "Logout", onClick: handleLogout },
   ];

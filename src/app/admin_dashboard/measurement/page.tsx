@@ -51,17 +51,21 @@ const AdminMeasurementPage = () => {
       {activeTab === 'customer' && (
         <CustomerMeasurement 
       view={true}
-      edit={true}
-      delete={true}
+      edit={false}
+      delete={false}
       add={true}
-      
     />
-
       )}
 
       {activeTab === 'product' && (
         <ProductMeasurementComponent
-        
+        permissions={{
+                canCreate: true,
+                canEdit: false,
+                canDelete: false,
+                canView: true
+            }}
+           
         />
       )}
 
@@ -71,12 +75,11 @@ const AdminMeasurementPage = () => {
             title="Measurement Fields"
             permissions={{
                 canCreate: true,
-                canEdit: true,
-                canDelete: true,
+                canEdit: false,
+                canDelete: false,
                 canView: true
             }}
-             
-
+         
             />
       )}
     </div>

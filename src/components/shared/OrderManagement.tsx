@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   useOrderManagement, 
   OrderStatus, 
-  CustomerType, 
+  ProductFilterType,
   SingleOrderCreate,
   SingleOrderResponse,
   BulkOrderDefaultCreate,
@@ -10,7 +10,8 @@ import {
   BulkOrderCustomCreate,      
   BulkOrderCustomResponse,
   ORDER_STATUS_OPTIONS,
-  SIZE_OPTIONS 
+  SIZE_OPTIONS,
+  PRODUCT_FILTER_OPTIONS
 } from '@/app/hooks/useOrder';
 import ReusableTable from '../ui/ReusableTable';
 import Button from '@/components/ui/button';
@@ -72,11 +73,13 @@ interface BulkDefaultFormData {
 interface BulkCustomFormData {
   bulkId: string;
   orderType: string;
+  productId: string; 
   quantity: string;
   unitPrice: string;
   stylePreferences: string;
   specialNotes: string;
   status?: OrderStatus;
+  batchName?: string;
 }
 
 interface FormErrors {
@@ -93,6 +96,7 @@ interface FormErrors {
 // Tab types
 type TabType = 'single' | 'bulk' | 'default';
 
+
 // Message Modal Component
 const MessageModal = ({
   isOpen,
@@ -108,6 +112,7 @@ const MessageModal = ({
   message: string;
 }) => {
   if (!isOpen) return null;
+  
 
   return (
     <div className="fixed inset-0 bg-blue-50/70 bg-opacity-50 flex items-center justify-center z-50">
@@ -234,6 +239,8 @@ const checkMeasurementExists = async (customerId: number, productId: number) => 
   // Tab state
   const [activeTab, setActiveTab] = useState<TabType>('single');
 
+  
+
   const [formData, setFormData] = useState<FormData>({
     customerId: '',
     orderType: 'single',
@@ -257,7 +264,8 @@ const checkMeasurementExists = async (customerId: number, productId: number) => 
 
 const [bulkCustomFormData, setBulkCustomFormData] = useState<BulkCustomFormData>({
     bulkId: '',
-    orderType: 'single',
+    orderType: 'bulk',
+    productId: '',
     quantity: '',
     unitPrice: '',
     stylePreferences: '',
@@ -271,10 +279,17 @@ const [bulkCustomFormData, setBulkCustomFormData] = useState<BulkCustomFormData>
   const [orders, setOrders] = useState<SingleOrderResponse[]>([]);
   const [bulkDefaultOrders, setBulkDefaultOrders] = useState<BulkOrderDefaultResponse[]>([]);
   const [bulkCustomOrders, setBulkCustomOrders] = useState<BulkOrderCustomResponse[]>([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<"create" | "edit" | "view">("create");
-  const [selectedOrder, setSelectedOrder] = useState<SingleOrderResponse | BulkOrderDefaultResponse | null>(null);
+  const [selectedCustomerForBulkProducts, setSelectedCustomerForBulkProducts] = useState<number | null>(null);
+  const [bulkProductFilterType, setBulkProductFilterType] = useState<ProductFilterType>(ProductFilterType.DEFAULT);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [orderToDelete, setOrderToDelete] = useState<{
+    order: SingleOrderResponse | BulkOrderDefaultResponse | BulkOrderCustomResponse;
+    customerName: string;
+  } | null>(null);
+      const [searchQuery, setSearchQuery] = useState("");
+      const [isModalOpen, setIsModalOpen] = useState(false);
+      const [modalMode, setModalMode] = useState<"create" | "edit" | "view">("create");
+      const [selectedOrder, setSelectedOrder] = useState<SingleOrderResponse | BulkOrderDefaultResponse | null>(null);
 
   // Message Modal State
   const [messageModal, setMessageModal] = useState({
@@ -283,6 +298,10 @@ const [bulkCustomFormData, setBulkCustomFormData] = useState<BulkCustomFormData>
     title: '',
     message: ''
   });
+
+  // Add product filter state - ADD THESE LINES
+const [productFilterType, setProductFilterType] = useState<ProductFilterType>(ProductFilterType.DEFAULT);
+const [selectedCustomerForProducts, setSelectedCustomerForProducts] = useState<number | null>(null);
 
   // Helper functions to determine if table action buttons should be shown
   const shouldShowViewAction = () => permissions.canView && tableActions.showViewButton;
@@ -305,22 +324,24 @@ const [bulkCustomFormData, setBulkCustomFormData] = useState<BulkCustomFormData>
   };
 
   // Auto-fill unit price when product is selected
-  useEffect(() => {
-    if (formData.productId && formData.productId !== 'custom') {
-      const selectedProduct = getProductById(parseInt(formData.productId));
-      if (selectedProduct) {
-        setFormData(prev => ({
-          ...prev,
-          unitPrice: selectedProduct.base_price.toString()
-        }));
-      }
-    } else if (formData.productId === 'custom') {
+useEffect(() => {
+  if (formData.productId && 
+      formData.productId !== 'custom' && 
+      productFilterType === ProductFilterType.DEFAULT) { 
+    const selectedProduct = getProductById(parseInt(formData.productId));
+    if (selectedProduct) {
       setFormData(prev => ({
         ...prev,
-        unitPrice: ''
+        unitPrice: selectedProduct.base_price.toString()
       }));
     }
-  }, [formData.productId, getProductById]);
+  } else if (formData.productId === 'custom' || productFilterType === ProductFilterType.CUSTOM) {
+    setFormData(prev => ({
+      ...prev,
+      unitPrice: ''
+    }));
+  }
+}, [formData.productId, productFilterType, getProductById]);
 
   // Auto-fill unit price for bulk default orders
   useEffect(() => {
@@ -346,6 +367,77 @@ useEffect(() => {
   }
 }, [activeTab, getAllBulkIds]);
 
+// Replace this useEffect in your component
+useEffect(() => {
+  // Only auto-fill unit price when a DEFAULT product is selected (not custom products)
+  if (bulkCustomFormData.productId && 
+      bulkCustomFormData.productId !== 'custom' && 
+      bulkProductFilterType === ProductFilterType.DEFAULT) {
+    const selectedProduct = getProductById(parseInt(bulkCustomFormData.productId));
+    if (selectedProduct) {
+      setBulkCustomFormData(prev => ({
+        ...prev,
+        unitPrice: selectedProduct.base_price.toString()
+      }));
+    }
+  } else if ((bulkCustomFormData.productId === 'custom' || bulkProductFilterType === ProductFilterType.CUSTOM) && 
+             modalMode === "create") { 
+    // Clear unit price for custom products - user must enter manually
+    setBulkCustomFormData(prev => ({
+      ...prev,
+      unitPrice: ''
+    }));
+  }
+}, [bulkCustomFormData.productId, bulkProductFilterType, getProductById, modalMode]); 
+
+// Helper function to get display name for delete confirmation
+const getOrderDisplayName = (order: SingleOrderResponse | BulkOrderDefaultResponse | BulkOrderCustomResponse) => {
+  let customerId: number;
+  let customerName: string;
+  
+  if ('quantity' in order && 'customerid' in order) {
+    // Single order
+    customerId = order.customerid;
+  } else if ('Bulkid' in order) {
+    // Bulk custom order
+    const bulkData = bulkIds.find(bulk => bulk.id === order.Bulkid);
+    if (bulkData) {
+      const customer = getCustomerById(bulkData.corporate_customer_id);
+      return customer ? (customer.company_name || getCustomerDisplayName(customer)) : `Bulk ID: ${order.Bulkid}`;
+    }
+    return `Bulk ID: ${order.Bulkid}`;
+  } else {
+    // Bulk default order
+    customerId = order.CustomerID;
+  }
+  
+  const customer = getCustomerById(customerId);
+  return customer ? getCustomerDisplayName(customer) : `Customer ${customerId}`;
+};
+
+// New function to confirm deletion
+const confirmDelete = async () => {
+  if (!orderToDelete) return;
+
+  try {
+    let customerIdDisplay: string;
+    
+    if ('quantity' in orderToDelete.order && 'customerid' in orderToDelete.order) {
+      customerIdDisplay = orderToDelete.order.customerid.toString();
+    } else if ('Bulkid' in orderToDelete.order) {
+      customerIdDisplay = orderToDelete.order.Bulkid.toString();
+    } else {
+      customerIdDisplay = orderToDelete.order.CustomerID.toString();
+    }
+    
+    await handleDeleteOrder(orderToDelete.order.order_id, customerIdDisplay);
+    setIsDeleteModalOpen(false);
+    setOrderToDelete(null);
+  } catch (err) {
+    console.error(`Failed to delete order:`, err);
+    showErrorMessage('Deletion Failed', 'Failed to delete order. Please try again.');
+  }
+};
 
 
 const loadOrders = async () => {
@@ -395,18 +487,20 @@ const loadOrders = async () => {
         errors.unitPrice = 'Unit price must be greater than 0';
       }
     } else if (activeTab === 'bulk') { 
-      if (!bulkCustomFormData.bulkId) {
-        errors.bulkId = 'Bulk ID is required';
-      }
-      if (!bulkCustomFormData.orderType) {
-        errors.orderType = 'Order type is required';
-      }
-    
-      if (!bulkCustomFormData.quantity || parseInt(bulkCustomFormData.quantity) <= 0) {
-        errors.quantity = 'Quantity must be greater than 0';
-      }
-      if (!bulkCustomFormData.unitPrice || parseFloat(bulkCustomFormData.unitPrice) <= 0) {
-        errors.unitPrice = 'Unit price must be greater than 0';
+        if (!bulkCustomFormData.bulkId) {
+          errors.bulkId = 'Bulk ID is required';
+        }
+        if (!bulkCustomFormData.orderType) {
+          errors.orderType = 'Order type is required';
+        }
+        if (!bulkCustomFormData.productId) {  // ADD THIS
+          errors.productId = 'Product category is required';
+        }
+        if (!bulkCustomFormData.quantity || parseInt(bulkCustomFormData.quantity) <= 0) {
+          errors.quantity = 'Quantity must be greater than 0';
+        }
+        if (!bulkCustomFormData.unitPrice || parseFloat(bulkCustomFormData.unitPrice) <= 0) {
+          errors.unitPrice = 'Unit price must be greater than 0';
       }
     } else if (activeTab === 'default') {
       if (!bulkDefaultFormData.customerId) {
@@ -454,11 +548,11 @@ const loadOrders = async () => {
 const handleBulkCustomInputChange = (field: keyof BulkCustomFormData, value: string) => {
   setBulkCustomFormData(prev => ({ ...prev, [field]: value }));
   
+  
   if (formErrors[field as keyof FormErrors]) {
     setFormErrors(prev => ({ ...prev, [field]: undefined }));
   }
 };
-
   // Helper functions for bulk default size quantities
   const addSizeQuantity = () => {
     setBulkDefaultFormData(prev => ({
@@ -506,16 +600,37 @@ const handleBulkCustomInputChange = (field: keyof BulkCustomFormData, value: str
     });
   } 
   else if ('Bulkid' in order) {
-  setBulkCustomFormData({
-    bulkId: order.Bulkid.toString(),
-    orderType: 'bulk', 
-    quantity: order.quantity.toString(),
-    unitPrice: order.unit_price.toString(),
-    stylePreferences: order.stylepreference || '',
-    specialNotes: order.speacial_requests || '',
-    status: order.status
-  })
-  } else {
+    // Bulk custom order
+    const bulkData = bulkIds.find(bulk => bulk.id === order.Bulkid);
+    const productId = bulkData ? bulkData.product_id.toString() : '';
+    const batchName = bulkData ? bulkData.batch_name || '' : '';
+    
+    // CRITICAL: Set the product filter type FIRST before setting form data
+    if (bulkData) {
+      const product = getProductById(bulkData.product_id);
+      if (product?.customer_id) {
+        setBulkProductFilterType(ProductFilterType.CUSTOM);
+        setSelectedCustomerForBulkProducts(bulkData.corporate_customer_id);
+      } else {
+        setBulkProductFilterType(ProductFilterType.DEFAULT);
+        setSelectedCustomerForBulkProducts(null);
+      }
+    }
+    
+    // THEN set the form data
+    setBulkCustomFormData({
+      bulkId: order.Bulkid.toString(),
+      orderType: 'bulk', 
+      productId: productId,
+      quantity: order.quantity.toString(),
+      unitPrice: order.unit_price?.toString() || '',
+      stylePreferences: order.stylepreference || '',
+      specialNotes: order.speacial_requests || '',
+      status: order.status,
+      batchName: batchName
+    });
+  }
+  else {
     // Bulk default order
     const sizeQuantities = Object.entries(order.quantity_by_size).map(([size, qty]) => ({
       size,
@@ -533,7 +648,6 @@ const handleBulkCustomInputChange = (field: keyof BulkCustomFormData, value: str
     });
   }
 };
-
   // Modal handlers
   const openCreateModal = () => {
     if (!permissions.canCreate) return;
@@ -553,6 +667,7 @@ const handleBulkCustomInputChange = (field: keyof BulkCustomFormData, value: str
     setBulkCustomFormData({
       bulkId: '',
       orderType: 'bulk',
+      productId: '',
       quantity: '',
       unitPrice: '',
       stylePreferences: '',
@@ -662,10 +777,20 @@ const handleCreateOrder = async () => {
         await loadOrders();
       }
     }
-  } catch (error) {
-    console.error('Failed to create order:', error);
-    showErrorMessage('Creation Failed', 'Failed to create order');
+  } catch (error: any) {
+  console.error('Failed to create default order:', error);
+  
+  // Get product name for better error context
+  const product = getProductById(parseInt(bulkDefaultFormData.productId));
+  const productName = product ? product.category_name : 'this product';
+  
+  // Check if it's a size-related error
+  if (error?.message?.toLowerCase().includes('measurements','not','exist')) {
+    showErrorMessage('Invalid Size', `No standard sizes found for ${productName}. Please add available sizes for this product before creating the order.`);
+  } else {
+    showErrorMessage('Creation Failed', `Failed to create bulk default order for ${productName}. Please try again.`);
   }
+}
 };
 
   const handleUpdateOrder = async () => {
@@ -683,7 +808,7 @@ const handleCreateOrder = async () => {
           speacial_requests: formData.specialNotes || undefined,
         };
 
-        const result = await updateSingleOrder(selectedOrder.id, orderData);
+        const result = await updateSingleOrder(selectedOrder.order_id, orderData);
         if (result) {
           closeModal();
           const customer = getCustomerById(parseInt(formData.customerId));
@@ -702,7 +827,7 @@ const handleCreateOrder = async () => {
         speacial_requests: bulkCustomFormData.specialNotes || undefined,
       };
 
-      const result = await updateBulkCustomOrder(selectedOrder.id, orderData);
+      const result = await updateBulkCustomOrder(selectedOrder.order_id, orderData);
       if (result) {
         closeModal();
         showSuccessMessage('Success!', `Bulk custom order for Bulk ID: ${bulkCustomFormData.bulkId} has been updated successfully.`);
@@ -727,7 +852,7 @@ const handleCreateOrder = async () => {
           speacial_request: bulkDefaultFormData.specialNotes || undefined,
         };
 
-        const result = await updateBulkDefaultOrder(selectedOrder.id, orderData);
+        const result = await updateBulkDefaultOrder(selectedOrder.order_id, orderData);
         if (result) {
           closeModal();
           const customer = getCustomerById(parseInt(bulkDefaultFormData.customerId));
@@ -772,14 +897,13 @@ const handleCreateOrder = async () => {
   };
 
   // Filter orders based on search and active tab
-  // Filter orders based on search and active tab
 const getFilteredOrders = () => {
   let filteredData: (SingleOrderResponse | BulkOrderDefaultResponse | BulkOrderCustomResponse)[] = [];
   
   if (activeTab === 'single') {
     filteredData = orders;
   } else if (activeTab === 'bulk') {
-    filteredData = bulkCustomOrders; // ✅ Add this missing case
+    filteredData = bulkCustomOrders; 
   } else if (activeTab === 'default') {
     filteredData = bulkDefaultOrders;
   }
@@ -798,13 +922,26 @@ const getFilteredOrders = () => {
       customerId = order.customerid;
       productId = order.productid;
     } else if ('Bulkid' in order) {
-      // Bulk custom order - handle differently since it doesn't have customer/product IDs
-      return (
-        order.id.toString().includes(searchLower) ||
-        order.Bulkid.toString().includes(searchLower) ||
-        `Bulk ${order.Bulkid}`.toLowerCase().includes(searchLower)
-      );
-    } else {
+  // Bulk custom order - search by customer name, product name, bulk ID, and order ID
+  const bulkData = bulkIds.find(bulk => bulk.id === order.Bulkid);
+  let customerName = `Bulk ${order.Bulkid}`;
+  let productName = 'Unknown Product';
+  
+  if (bulkData) {
+    const customer = getCustomerById(bulkData.corporate_customer_id);
+    customerName = customer ? (customer.company_name || getCustomerDisplayName(customer)) : `Customer ${bulkData.corporate_customer_id}`;
+    
+    const product = getProductById(bulkData.product_id);
+    productName = product ? getProductDisplayName(product) : `Product ${bulkData.product_id}`;
+  }
+  
+  return (
+    customerName.toLowerCase().includes(searchLower) ||
+    productName.toLowerCase().includes(searchLower) ||
+    order.order_id.toString().includes(searchLower) ||
+    order.Bulkid.toString().includes(searchLower)
+  );
+} else {
       // Bulk default order
       customerId = order.CustomerID;
       productId = order.ProductID;
@@ -818,7 +955,7 @@ const getFilteredOrders = () => {
     return (
       customerName.toLowerCase().includes(searchLower) ||
       productName.toLowerCase().includes(searchLower) ||
-      order.id.toString().includes(searchLower)
+      order.order_id.toString().includes(searchLower)
     );
   });
 };
@@ -828,7 +965,7 @@ const getFilteredOrders = () => {
   // Table configuration for single orders
   const getSingleOrderTableColumns = () => [
     {
-      key: 'id',
+      key: 'order_id',
       label: 'Order_ID',
       width: '100px',
       render: (value: number) => `${value}`
@@ -867,12 +1004,7 @@ const getFilteredOrders = () => {
         return product ? product.category_name : `Product ${row.productid}`;
       }
     },
-    {
-      key: 'stylepreference',
-      label: 'Style Preferences',
-      minWidth: '170px',
-      render: (value: string) => value || 'None'
-    },
+   
     {
       key: 'quantity',
       label: 'Quantity',
@@ -924,7 +1056,7 @@ const getFilteredOrders = () => {
   // Table configuration for bulk default orders
   const getBulkDefaultTableColumns = () => [
     {
-      key: 'id',
+      key: 'order_id',
       label: 'Order_ID',
       width: '100px',
       render: (value: number) => `${value}`
@@ -953,12 +1085,7 @@ const getFilteredOrders = () => {
         return product ? product.category_name : `Product ${row.ProductID}`;
       }
     },
-    {
-      key: 'stylepreference',
-      label: 'Style Preferences',
-      minWidth: '180px',
-      render: (value: string) => value || 'None'
-    },
+    
     {
     key: 'sizes',
     label: 'Size',
@@ -1024,7 +1151,7 @@ const getFilteredOrders = () => {
 
 const getBulkCustomTableColumns = () => [
   {
-    key: 'id',
+    key: 'order_id',
     label: 'Order_ID',
     width: '100px',
     render: (value: number) => `${value}`
@@ -1035,18 +1162,56 @@ const getBulkCustomTableColumns = () => [
     width: '100px',
     render: (value: number) => `${value}`
   },
-
   {
-    key: 'unit_price',
-    label: 'Unit_Price',
-    render: (value: number) => `Rs.${value.toFixed(2)}`,
-    width: '120px'
+    key: 'customer_name',
+    label: 'Customer Name',
+    minWidth: '150px',
+    render: (value: any, row: any) => {
+      // Find the bulk data to get the corporate_customer_id
+      const bulkData = bulkIds.find(bulk => bulk.id === row.Bulkid);
+      if (bulkData) {
+        const customer = getCustomerById(bulkData.corporate_customer_id);
+        return customer ? (customer.company_name || getCustomerDisplayName(customer)) : `Customer ${bulkData.corporate_customer_id}`;
+      }
+      return `Bulk ID: ${row.Bulkid}`;
+    }
   },
   {
-    key: 'stylepreference',
-    label: 'Style_Preference',
-    minWidth: '180px',
-    render: (value: string) => value || 'None'
+    key: 'batch_name',
+    label: 'Batch Name',
+    minWidth: '130px',
+    render: (value: any, row: any) => {
+      // Find the bulk data to get the batch_name
+      const bulkData = bulkIds.find(bulk => bulk.id === row.Bulkid);
+      return bulkData?.batch_name || 'No Batch Name';
+    }
+  },
+  {
+    key: 'product_id',
+    label: 'Product_ID',
+    width: '120px',
+    render: (value: any, row: any) => {
+      // Find the bulk data to get the product_id
+      const bulkData = bulkIds.find(bulk => bulk.id === row.Bulkid);
+      if (bulkData) {
+        return `${bulkData.product_id}`;
+      }
+      return 'N/A';
+    }
+  },
+  {
+    key: 'product_name',
+    label: 'Product Name',
+    minWidth: '150px',
+    render: (value: any, row: any) => {
+      // Find the bulk data to get the product_id, then get product name
+      const bulkData = bulkIds.find(bulk => bulk.id === row.Bulkid);
+      if (bulkData) {
+        const product = getProductById(bulkData.product_id);
+        return product ? product.category_name : `Product ${bulkData.product_id}`;
+      }
+      return 'Unknown Product';
+    }
   },
   {
     key: 'quantity',
@@ -1055,11 +1220,12 @@ const getBulkCustomTableColumns = () => [
     render: (value: number) => `${value}`
   },
   {
-    key: 'speacial_requests',
-    label: 'Special_Notes',
-    minWidth: '180px',
-    render: (value: string) => value || 'None'
+    key: 'unit_price',
+    label: 'Unit_Price',
+    render: (value: number) => `Rs.${value.toFixed(2)}`,
+    width: '120px'
   },
+ 
   {
     key: 'status',
     label: 'Status',
@@ -1095,6 +1261,7 @@ const getBulkCustomTableColumns = () => [
     }
   }
 ];
+
   // Table actions based on permissions and tableActions settings
   const getActions = () => {
     const defaultActions = [];
@@ -1142,23 +1309,12 @@ const getBulkCustomTableColumns = () => [
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
           </svg>
         ),
-        onClick: (order: SingleOrderResponse |BulkOrderDefaultResponse | BulkOrderDefaultResponse) => {
-          let customerId: number;
-          let customerName: string;
-          
-          if ('quantity' in order) {
-            customerId = order.customerid;
-          } else {
-            customerId = order.CustomerID;
-          }
-          
-          const customer = getCustomerById(customerId);
-          customerName = customer ? getCustomerDisplayName(customer) : `Customer ${customerId}`;
-          
-          if (window.confirm(`Are you sure you want to delete the order for "${customerName}"?`)) {
-            handleDeleteOrder(order.id, customerName);
-          }
-        },
+       onClick: (order: SingleOrderResponse | BulkOrderDefaultResponse | BulkOrderCustomResponse) => {
+        const customerName = getOrderDisplayName(order);
+        setOrderToDelete({ order, customerName });
+        setIsDeleteModalOpen(true);
+      },
+        
         className: "text-red-600 hover:bg-red-50",
       });
     }
@@ -1204,37 +1360,57 @@ const getLoadingState = () => {
   return (
     <div className="h-screen flex flex-col overflow-hidden">
       <main className="flex-1 p-6 bg-gray-50 flex flex-col overflow-hidden">
-        {/* Header Section */}
-        <div className="flex-shrink-0 mb-6">
-          {/* Main Header */}
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-            {permissions.canCreate && (
-              <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700 text-white">
-                + Add Order
-              </Button>
-            )}
+
+      {/* Header Section */}
+      <div className="flex-shrink-0 mb-6">
+        {/* Main Header */}
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+          {permissions.canCreate && (
+            <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700 text-white">
+              + Add Order
+            </Button>
+          )}
+        </div>
+
+        {/* Order Type Tabs with Search Bar */}
+        <div className="flex justify-between items-center border-b border-gray-200 mb-2 pb-2">
+          {/* Left side - Order Type Tabs */}
+          <div className="flex space-x-8">
+            <button
+              onClick={() => setActiveTab("single")}
+              className={`pb-1 px-1 font-medium text-sm transition-colors ${
+                activeTab === "single"
+                  ? "border-b-2 border-blue-600 text-blue-600"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Single
+            </button>
+            <button
+              onClick={() => setActiveTab("bulk")}
+              className={`pb-1 px-1 font-medium text-sm transition-colors ${
+                activeTab === "bulk"
+                  ? "border-b-2 border-blue-600 text-blue-600"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Bulk
+            </button>
+            <button
+              onClick={() => setActiveTab("default")}
+              className={`pb-1 px-1 font-medium text-sm transition-colors ${
+                activeTab === "default"
+                  ? "border-b-2 border-blue-600 text-blue-600"
+                  : "text-gray-600 hover:text-gray-900"
+              }`}
+            >
+              Default
+            </button>
           </div>
 
-          {/* Tab Navigation */}
-          <div className="flex space-x-0 mb-6">
-            {(['single', 'bulk', 'default'] as TabType[]).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-6 py-3 text-sm font-medium transition-colors duration-200 border-b-2 ${
-                  activeTab === tab
-                    ? 'text-blue-600 border-blue-600 bg-blue-50'
-                    : 'text-gray-600 border-transparent hover:text-gray-900 hover:border-gray-300'
-                }`}
-              >
-                {getTabLabel(tab)}
-              </button>
-            ))}
-          </div>
-
-          {/* Search Bar */}
-          <div className="flex justify-between items-center mb-4">
+          {/* Right side - Search Bar */}
+          <div className="flex items-center space-x-4">
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1251,6 +1427,7 @@ const getLoadingState = () => {
             </div>
           </div>
         </div>
+      </div>
 
         {/* Table Container */}
         <div className="flex-1 min-h-0 bg-white rounded-lg border border-gray-200">
@@ -1259,7 +1436,7 @@ const getLoadingState = () => {
             columns={getTableColumns()}
             actions={getActions()}
             loading={getLoadingState()}
-            emptyMessage={`No ${activeTab} orders found. Create your first ${activeTab} order!`}
+            emptyMessage={`No ${activeTab} orders found. Click "Add Order" to get started.`}
           />
         </div>
 
@@ -1281,10 +1458,12 @@ const getLoadingState = () => {
                     disabled={modalMode === "view" || customersLoading}
                     required
                   >
-                    <option value="">Select</option>
-                    {customers.map((customer) => (
+                    <option value="">Select Customer ID</option>
+                    {customers
+                    .filter((customer) => customer.customer_type === 'individual')
+                    .map((customer) => (
                      <option key={customer.id} value={customer.id}>
-                      ID: {customer.id} - {getCustomerDisplayName(customer)}
+                      {customer.id} - {getCustomerDisplayName(customer)}
                     </option>
                     ))}
                   </select>
@@ -1314,29 +1493,88 @@ const getLoadingState = () => {
                 </div>
 
                 {/* Product Category */}
+                {/* Product Type Selection - SINGLE ORDER ONLY */}
                 <div>
-                  <label className="block text-sm font-medium mb-2">Product Category *</label>
+                  <label className="block text-sm font-medium mb-2">Product Type *</label>
                   <select
-                    value={formData.productId}
-                    onChange={(e) => handleInputChange('productId', e.target.value)}
-                    className={`w-full px-3 py-2 border rounded-lg ${
-                      formErrors.productId ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                    } focus:outline-none focus:ring-2`}
-                    disabled={modalMode === "view" || productsLoading}
-                    required
+                    value={productFilterType}
+                    onChange={(e) => {
+                      const newType = e.target.value as ProductFilterType;
+                      setProductFilterType(newType);
+                      handleInputChange('productId', '');
+                      
+                      // Automatically use the selected customer for custom products
+                      if (newType === ProductFilterType.CUSTOM && formData.customerId) {
+                        setSelectedCustomerForProducts(parseInt(formData.customerId));
+                      } else if (newType === ProductFilterType.DEFAULT) {
+                        setSelectedCustomerForProducts(null);
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={modalMode === "view"}
                   >
-                    <option value="">Select</option>
-                    {products.map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.category_name}
+                    {PRODUCT_FILTER_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
                       </option>
                     ))}
                   </select>
-                  {formErrors.productId && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.productId}</p>
-                  )}
                 </div>
 
+
+               {/* Product Category - SINGLE ORDER ONLY */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Product Category *</label>
+                  {modalMode === "view" ? (
+                    <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                      {(() => {
+                        if (formData.productId === '0' || formData.productId === 'custom') {
+                          return 'Custom Product';
+                        }
+                        const product = getProductById(parseInt(formData.productId));
+                        return product ? `${product.category_name} ${product.customer_id ? '(Custom)' : ''}` : `Product ID: ${formData.productId}`;
+                      })()}
+                    </div>
+                  ) : (
+                    <>
+                      <select
+                        value={formData.productId}
+                        onChange={(e) => handleInputChange('productId', e.target.value)}
+                        className={`w-full px-3 py-2 border rounded-lg ${
+                          formErrors.productId ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                        } focus:outline-none focus:ring-2`}
+                        disabled={productsLoading || (productFilterType === ProductFilterType.CUSTOM && !formData.customerId)}
+                        required
+                      >
+                        <option value="">
+                          {productFilterType === ProductFilterType.CUSTOM && !formData.customerId 
+                            ? "Select customer first" 
+                            : "Select Product"
+                          }
+                        </option>
+                        {products
+                          .filter((product) => {
+                            if (productFilterType === ProductFilterType.DEFAULT) {
+                              return !product.customer_id; // Default products
+                            } else if (productFilterType === ProductFilterType.CUSTOM) {
+                              // Use the customer selected for the order
+                              return product.customer_id === parseInt(formData.customerId);
+                            }
+                            return true;
+                          })
+                          .map((product) => (
+                            <option key={product.id} value={product.id}>
+                              {product.category_name} {product.customer_id ? '(Custom)' : ''}
+                            </option>
+                          ))
+                        }
+                      </select>
+                      {formErrors.productId && (
+                        <p className="mt-1 text-sm text-red-600">{formErrors.productId}</p>
+                      )}
+                    </>
+                  )}
+                </div>
                 {/* Quantity */}
                 <div>
                   <label className="block text-sm font-medium mb-2">Quantity *</label>
@@ -1359,41 +1597,48 @@ const getLoadingState = () => {
 
                 {/* Unit Price */}
                 <div>
-                  <label className="block text-sm font-medium mb-2">Unit Price *</label>
+                <label className="block text-sm font-medium mb-2">Unit Price *</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm pointer-events-none">
+                    Rs.
+                  </span>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={formData.unitPrice}
                     onChange={(e) => handleInputChange('unitPrice', e.target.value)}
-                    className={`w-full px-3 py-2 border rounded-lg ${
+                    className={`w-full pl-9 pr-3 py-2 border rounded-lg ${
                       formErrors.unitPrice ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                     } focus:outline-none focus:ring-2`}
-                    placeholder="Rs. 400.00"
+                    placeholder="00.00"
                     readOnly={modalMode === "view"}
                     required
                   />
-                  {formErrors.unitPrice && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.unitPrice}</p>
+                </div>
+                {formErrors.unitPrice && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors.unitPrice}</p>
+                )}
+             </div>
+               {/* Style Preferences */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    {productFilterType === ProductFilterType.CUSTOM ? 'Style & Material Preference' : 'Style Preferences'}
+                  </label>
+                  {modalMode === "view" ? (
+                    <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                      {formData.stylePreferences || `No ${productFilterType === ProductFilterType.CUSTOM ? 'style & material preferences' : 'style preferences'} provided`}
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      value={formData.stylePreferences}
+                      onChange={(e) => handleInputChange('stylePreferences', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder={`Enter ${productFilterType === ProductFilterType.CUSTOM ? 'style & material preferences' : 'style preferences'}`}
+                    />
                   )}
                 </div>
-                {/* Style Preferences */}
-              <div>
-                <label className="block text-sm font-medium mb-2">Style Preferences</label>
-                {modalMode === "view" ? (
-                  <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                    {formData.stylePreferences || 'No style preferences provided'}
-                  </div>
-                ) : (
-                  <input
-                    type="text"
-                    value={formData.stylePreferences}
-                    onChange={(e) => handleInputChange('stylePreferences', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Enter style preferences"
-                  />
-                )}
-              </div>
 
                 {/* Special Notes */}
                 <div>
@@ -1468,190 +1713,289 @@ const getLoadingState = () => {
               </>
             ) : activeTab === 'bulk' ? (
           // Bulk Custom Order Form
+          <>
+            {/* Bulk ID */}
+            <div>
+             <label className="block text-sm font-medium mb-2">Bulk ID *</label>
+              <select
+                value={bulkCustomFormData.bulkId}
+                onChange={(e) => handleBulkCustomInputChange('bulkId', e.target.value)}
+                className={`w-full px-3 py-2 border rounded-lg ${
+                  formErrors.bulkId ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                } focus:outline-none focus:ring-2`}
+                disabled={modalMode === "view" || bulkIdsLoading}
+                required
+              >
+                <option value="">Select Bulk ID</option>
+                {bulkIds.map((bulkData) => {
+                  // Get the customer data using the corporate_customer_id
+                  const customer = getCustomerById(bulkData.corporate_customer_id);
+                  const customerName = customer ? (customer.company_name || getCustomerDisplayName(customer)) : `Customer ID: ${bulkData.corporate_customer_id}`;
+                  
+                  return (
+                    <option key={bulkData.id} value={bulkData.id}>
+                       {bulkData.id} - {customerName} ({bulkData.batch_name || 'No Batch Name'})
+                    </option>
+                  );
+                })}
+              </select>
+              {bulkIdsLoading && (
+                <p className="mt-1 text-sm text-blue-600">Loading bulk IDs...</p>
+              )}
+              {bulkIdsError && (
+                <p className="mt-1 text-sm text-red-600">Error loading bulk IDs: {bulkIdsError}</p>
+              )}
+              {formErrors.bulkId && (
+                <p className="mt-1 text-sm text-red-600">{formErrors.bulkId}</p>
+              )}
+            </div>
+
+           {/* Product Type Selection */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Product Type *</label>
+              <select
+                value={bulkProductFilterType}
+                onChange={(e) => {
+                  const newType = e.target.value as ProductFilterType;
+                  setBulkProductFilterType(newType);
+                  handleBulkCustomInputChange('productId', '');
+                  
+                  if (newType === ProductFilterType.CUSTOM && bulkCustomFormData.bulkId && bulkIds.length > 0) {
+                    const selectedBulkData = bulkIds.find(bulk => bulk.id.toString() === bulkCustomFormData.bulkId);
+                    if (selectedBulkData) {
+                      setSelectedCustomerForBulkProducts(selectedBulkData.corporate_customer_id);
+                    }
+                  } else if (newType === ProductFilterType.DEFAULT) {
+                    setSelectedCustomerForBulkProducts(null);
+                  }
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                disabled={modalMode === "view"}
+              >
+                {PRODUCT_FILTER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+          {/* Product Category Selection */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Product Category *</label>
+            {modalMode === "view" ? (
+              <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                {(() => {
+                  const bulkData = bulkIds.find(bulk => bulk.id.toString() === bulkCustomFormData.bulkId);
+                  if (bulkData) {
+                    const product = getProductById(bulkData.product_id);
+                    return product ? `${product.category_name} ${product.customer_id ? '(Custom)' : ''}` : `Product ID: ${bulkData.product_id}`;
+                  }
+                  return 'Unknown Product';
+                })()}
+              </div>
+            ) : (
               <>
-             {/* Bulk ID */}
-              <div>
-                <label className="block text-sm font-medium mb-2">Bulk ID *</label>
                 <select
-                  value={bulkCustomFormData.bulkId}
-                  onChange={(e) => handleBulkCustomInputChange('bulkId', e.target.value)}
+                  value={bulkCustomFormData.productId}
+                  onChange={(e) => handleBulkCustomInputChange('productId', e.target.value)}
                   className={`w-full px-3 py-2 border rounded-lg ${
-                    formErrors.bulkId ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                    formErrors.productId ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                   } focus:outline-none focus:ring-2`}
-                  disabled={modalMode === "view" || bulkIdsLoading}
+                  disabled={productsLoading || (bulkProductFilterType === ProductFilterType.CUSTOM && !bulkCustomFormData.bulkId)}
                   required
                 >
-                  <option value="">Select Bulk ID</option>
-                  {bulkIds.map((bulkData) => (
-                    <option key={bulkData.id} value={bulkData.id}>
-                      ID: {bulkData.id} - {bulkData.batch_name || 'No Batch Name'} 
-                      ({bulkData.corporate_customer_name} - {bulkData.product_name})
-                    </option>
-                  ))}
+                  <option value="">
+                    {bulkProductFilterType === ProductFilterType.CUSTOM && !bulkCustomFormData.bulkId 
+                      ? "Select bulk ID first" 
+                      : "Select Product"
+                    }
+                  </option>
+                  {products
+                    .filter((product) => {
+                      if (bulkProductFilterType === ProductFilterType.DEFAULT) {
+                        return !product.customer_id;
+                      } else if (bulkProductFilterType === ProductFilterType.CUSTOM) {
+                        if (bulkCustomFormData.bulkId && bulkIds.length > 0) {
+                          const selectedBulkData = bulkIds.find(bulk => bulk.id.toString() === bulkCustomFormData.bulkId);
+                          return selectedBulkData && product.customer_id === selectedBulkData.corporate_customer_id;
+                        }
+                        return false;
+                      }
+                      return true;
+                    })
+                    .map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.category_name} {product.customer_id ? '(Custom)' : ''}
+                      </option>
+                    ))
+                  }
                 </select>
-                {bulkIdsLoading && (
-                  <p className="mt-1 text-sm text-blue-600">Loading bulk IDs...</p>
-                )}
-                {bulkIdsError && (
-                  <p className="mt-1 text-sm text-red-600">Error loading bulk IDs: {bulkIdsError}</p>
-                )}
-                {formErrors.bulkId && (
-                  <p className="mt-1 text-sm text-red-600">{formErrors.bulkId}</p>
-                )}
-              </div>
-                {/* Order Type */}
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Order Type *</label>
-                    <select
-                      value={bulkCustomFormData.orderType}
-                      onChange={(e) => handleBulkCustomInputChange('orderType', e.target.value)}
-                      className={`w-full px-3 py-2 border rounded-lg ${
-                        formErrors.orderType ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                      } focus:outline-none focus:ring-2`}
-                      disabled={modalMode === "view"}
-                      required
-                    >
-                      <option value="">Select Order Type</option>
-                      <option value="bulk">Bulk</option>
-                      <option value="custom">Custom</option>
-                    </select>
-                    {formErrors.orderType && (
-                      <p className="mt-1 text-sm text-red-600">{formErrors.orderType}</p>
-                    )}
-                  </div>
-              
-
-                                  {/* Quantity */}
-                <div>
-                  <label className="block text-sm font-medium mb-2">Quantity *</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={bulkCustomFormData.quantity}
-                    onChange={(e) => handleBulkCustomInputChange('quantity', e.target.value)}
-                    className={`w-full px-3 py-2 border rounded-lg ${
-                      formErrors.quantity ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                    } focus:outline-none focus:ring-2`}
-                    placeholder="Enter quantity"
-                    readOnly={modalMode === "view"}
-                    required
-                  />
-                  {formErrors.quantity && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.quantity}</p>
-                  )}
-                </div>
-
-                {/* Unit Price */}
-                <div>
-                  <label className="block text-sm font-medium mb-2">Unit Price *</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={bulkCustomFormData.unitPrice}
-                    onChange={(e) => handleBulkCustomInputChange('unitPrice', e.target.value)}
-                    className={`w-full px-3 py-2 border rounded-lg ${
-                      formErrors.unitPrice ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                    } focus:outline-none focus:ring-2`}
-                    placeholder="Rs. 400.00"
-                    readOnly={modalMode === "view"}
-                    required
-                  />
-                  {formErrors.unitPrice && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.unitPrice}</p>
-                  )}
-                </div>
-
-                {/* Style Preferences */}
-                <div>
-                  <label className="block text-sm font-medium mb-2">Style Preferences</label>
-                  {modalMode === "view" ? (
-                    <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                      {bulkCustomFormData.stylePreferences || 'No style preferences provided'}
-                    </div>
-                  ) : (
-                    <input
-                      type="text"
-                      value={bulkCustomFormData.stylePreferences}
-                      onChange={(e) => handleBulkCustomInputChange('stylePreferences', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter style preferences"
-                    />
-                  )}
-                </div>
-
-                {/* Special Notes */}
-                <div>
-                  <label className="block text-sm font-medium mb-2">Special Notes</label>
-                  {modalMode === "view" ? (
-                    <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 min-h-[80px]">
-                      {bulkCustomFormData.specialNotes || 'No special notes provided'}
-                    </div>
-                  ) : (
-                    <textarea
-                      rows={3}
-                      value={bulkCustomFormData.specialNotes}
-                      onChange={(e) => handleBulkCustomInputChange('specialNotes', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter any special notes"
-                    />
-                  )}
-                </div>
-
-                {/* Status (for view/edit mode) */}
-                {(modalMode === "view" || modalMode === "edit") && (
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Status *</label>
-                    {modalMode === "view" ? (
-                      <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                        {(() => {
-                          const getStatusConfig = (status: OrderStatus) => {
-                            switch (status) {
-                              case OrderStatus.ORDER_CONFIREMED:
-                                return { label: 'Order Confirmed', className: 'bg-yellow-400 text-black' };
-                              case OrderStatus.FABRIC_READY:
-                                return { label: 'Fabric Ready', className: 'bg-orange-400 text-black' };
-                              case OrderStatus.CUTTING:
-                                return { label: 'Cutting', className: 'bg-pink-400 text-black' };
-                              case OrderStatus.STITCHING:
-                                return { label: 'Stitching', className: 'bg-gray-400 text-black' };
-                              case OrderStatus.FITTING:
-                                return { label: 'Fitting', className: 'bg-pink-300 text-black' };
-                              case OrderStatus.READY_FOR_PICKUP:
-                                return { label: 'Ready for Pickup', className: 'bg-blue-400 text-white' };
-                              case OrderStatus.COMPLETED:
-                                return { label: 'Completed', className: 'bg-green-400 text-black' };
-                              default:
-                                return { label: bulkCustomFormData.status || 'Unknown', className: 'bg-gray-500 text-white' };
-                            }
-                          };
-                          
-                          const config = getStatusConfig(bulkCustomFormData.status!);
-                          return (
-                            <span className={`inline-block px-3 py-1 text-sm font-medium rounded ${config.className}`}>
-                              {config.label}
-                            </span>
-                          );
-                        })()}
-                      </div>
-                    ) : (
-                      <select
-                        value={bulkCustomFormData.status || ''}
-                        onChange={(e) => setBulkCustomFormData(prev => ({ ...prev, status: e.target.value as OrderStatus }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="">Select</option>
-                        {ORDER_STATUS_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
+                {formErrors.productId && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors.productId}</p>
                 )}
               </>
-            ) : activeTab === 'default' ? (
+            )}
+          </div>
+            {/* Order Type */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Order Type *</label>
+              <select
+                value={bulkCustomFormData.orderType}
+                onChange={(e) => handleBulkCustomInputChange('orderType', e.target.value)}
+                className={`w-full px-3 py-2 border rounded-lg ${
+                  formErrors.orderType ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                } focus:outline-none focus:ring-2`}
+                disabled={modalMode === "view"}
+                required
+              >
+                <option value="">Select Order Type</option>
+                <option value="bulk">Bulk</option>
+                <option value="custom">Custom</option>
+              </select>
+              {formErrors.orderType && (
+                <p className="mt-1 text-sm text-red-600">{formErrors.orderType}</p>
+              )}
+            </div>
+
+            {/* Quantity */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Quantity *</label>
+              <input
+                type="number"
+                min="1"
+                value={bulkCustomFormData.quantity}
+                onChange={(e) => handleBulkCustomInputChange('quantity', e.target.value)}
+                className={`w-full px-3 py-2 border rounded-lg ${
+                  formErrors.quantity ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                } focus:outline-none focus:ring-2`}
+                placeholder="Enter quantity"
+                readOnly={modalMode === "view"}
+                required
+              />
+              {formErrors.quantity && (
+                <p className="mt-1 text-sm text-red-600">{formErrors.quantity}</p>
+              )}
+            </div>
+
+            {/* Unit Price */}
+          <div>
+          <label className="block text-sm font-medium mb-2">Unit Price *</label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm pointer-events-none">
+              Rs.
+            </span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={bulkCustomFormData.unitPrice}
+              onChange={(e) => handleBulkCustomInputChange('unitPrice', e.target.value)}
+              className={`w-full pl-12 pr-3 py-2 border rounded-lg ${
+                formErrors.unitPrice ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+              } focus:outline-none focus:ring-2`}
+              placeholder="00.00"
+              readOnly={modalMode === "view"}
+              required
+            />
+          </div>
+          {formErrors.unitPrice && (
+            <p className="mt-1 text-sm text-red-600">{formErrors.unitPrice}</p>
+          )}
+        </div>
+
+          {/* Style Preferences */}
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              {bulkProductFilterType === ProductFilterType.CUSTOM ? 'Style & Material Preference' : 'Style Preferences'}
+            </label>
+            {modalMode === "view" ? (
+              <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                {bulkCustomFormData.stylePreferences || `No ${bulkProductFilterType === ProductFilterType.CUSTOM ? 'style & material preferences' : 'style preferences'} provided`}
+              </div>
+            ) : (
+              <input
+                type="text"
+                value={bulkCustomFormData.stylePreferences}
+                onChange={(e) => handleBulkCustomInputChange('stylePreferences', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder={`Enter ${bulkProductFilterType === ProductFilterType.CUSTOM ? 'style & material preferences' : 'style preferences'}`}
+              />
+            )}
+          </div>
+
+            {/* Special Notes */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Special Notes</label>
+              {modalMode === "view" ? (
+                <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 min-h-[80px]">
+                  {bulkCustomFormData.specialNotes || 'No special notes provided'}
+                </div>
+              ) : (
+                <textarea
+                  rows={3}
+                  value={bulkCustomFormData.specialNotes}
+                  onChange={(e) => handleBulkCustomInputChange('specialNotes', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Enter any special notes"
+                />
+              )}
+            </div>
+
+            {/* Status (for view/edit mode) */}
+            {(modalMode === "view" || modalMode === "edit") && (
+              <div>
+                <label className="block text-sm font-medium mb-2">Status *</label>
+                {modalMode === "view" ? (
+                  <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                    {(() => {
+                      const getStatusConfig = (status: OrderStatus) => {
+                        switch (status) {
+                          case OrderStatus.ORDER_CONFIREMED:
+                            return { label: 'Order Confirmed', className: 'bg-yellow-400 text-black' };
+                          case OrderStatus.FABRIC_READY:
+                            return { label: 'Fabric Ready', className: 'bg-orange-400 text-black' };
+                          case OrderStatus.CUTTING:
+                            return { label: 'Cutting', className: 'bg-pink-400 text-black' };
+                          case OrderStatus.STITCHING:
+                            return { label: 'Stitching', className: 'bg-gray-400 text-black' };
+                          case OrderStatus.FITTING:
+                            return { label: 'Fitting', className: 'bg-pink-300 text-black' };
+                          case OrderStatus.READY_FOR_PICKUP:
+                            return { label: 'Ready for Pickup', className: 'bg-blue-400 text-white' };
+                          case OrderStatus.COMPLETED:
+                            return { label: 'Completed', className: 'bg-green-400 text-black' };
+                          default:
+                            return { label: bulkCustomFormData.status || 'Unknown', className: 'bg-gray-500 text-white' };
+                        }
+                      };
+                      
+                      const config = getStatusConfig(bulkCustomFormData.status!);
+                      return (
+                        <span className={`inline-block px-3 py-1 text-sm font-medium rounded ${config.className}`}>
+                          {config.label}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                ) : (
+          <select
+            value={bulkCustomFormData.status || ''}
+            onChange={(e) => setBulkCustomFormData(prev => ({ ...prev, status: e.target.value as OrderStatus }))}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="">Select</option>
+            {ORDER_STATUS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+    )}
+  </>
+): activeTab === 'default' ? (
               // Bulk Default Order Form
               <>
                 {/* Customer Selection */}
@@ -1666,10 +2010,10 @@ const getLoadingState = () => {
                     disabled={modalMode === "view" || customersLoading}
                     required
                   >
-                    <option value="">Select</option>
+                    <option value="">Select Customer ID</option>
                     {customers.map((customer) => (
                       <option key={customer.id} value={customer.id}>
-                        ID: {customer.id} - {getCustomerDisplayName(customer)}
+                     {customer.id} - {getCustomerDisplayName(customer)}
                       </option>
                     ))}
                   </select>
@@ -1679,7 +2023,7 @@ const getLoadingState = () => {
                 </div>
 
                 {/* Product Category */}
-                <div>
+                    <div>
                   <label className="block text-sm font-medium mb-2">Product Category *</label>
                   <select
                     value={bulkDefaultFormData.productId}
@@ -1690,12 +2034,14 @@ const getLoadingState = () => {
                     disabled={modalMode === "view" || productsLoading}
                     required
                   >
-                    <option value="">Select</option>
-                    {products.map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.category_name}
-                      </option>
-                    ))}
+                    <option value="">Select Product Category</option>
+                    {products
+                      .filter((product) => !product.customer_id) // Only show default products (non-custom)
+                      .map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.category_name}
+                        </option>
+                      ))}
                   </select>
                   {formErrors.productId && (
                     <p className="mt-1 text-sm text-red-600">{formErrors.productId}</p>
@@ -1769,27 +2115,31 @@ const getLoadingState = () => {
                 </div>
 
                 {/* Unit Price */}
-                <div>
-                  <label className="block text-sm font-medium mb-2">Unit Price *</label>
+               <div>
+                <label className="block text-sm font-medium mb-2">Unit Price *</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm pointer-events-none">
+                    Rs.
+                  </span>
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     value={bulkDefaultFormData.unitPrice}
                     onChange={(e) => handleBulkDefaultInputChange('unitPrice', e.target.value)}
-                    className={`w-full px-3 py-2 border rounded-lg ${
+                    className={`w-full pl-12 pr-3 py-2 border rounded-lg ${
                       formErrors.unitPrice ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                     } focus:outline-none focus:ring-2`}
-                    placeholder="Rs. 400.00"
+                    placeholder="00.00"
                     readOnly={modalMode === "view"}
                     required
                   />
-                  {formErrors.unitPrice && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.unitPrice}</p>
-                  )}
                 </div>
-
-                {/* Style Preferences */}
+                {formErrors.unitPrice && (
+                  <p className="mt-1 text-sm text-red-600">{formErrors.unitPrice}</p>
+                )}
+              </div>
+                              {/* Style Preferences */}
                 <div>
                   <label className="block text-sm font-medium mb-2">Style Preferences</label>
                   {modalMode === "view" ? (
@@ -1884,33 +2234,27 @@ const getLoadingState = () => {
             <div className="flex justify-end pt-4 gap-3">
               {modalMode === "view" ? (
                 <>
-                  {shouldShowDeleteButton() && (
-                    <Button 
-                      type="button"
-                      onClick={() => {
-                        if (!selectedOrder) return;
-                        
-                        let customerId: number;
-                        let customerName: string;
-                        
-                        if ('quantity' in selectedOrder) {
-                          customerId = selectedOrder.customerid;
-                        } else {
-                          customerId = selectedOrder.CustomerID;
-                        }
-                        
-                        const customer = getCustomerById(customerId);
-                        customerName = customer ? getCustomerDisplayName(customer) : `Customer ${customerId}`;
-                        
-                        if (window.confirm(`Are you sure you want to delete the order for Customer ID: ${customerId}?`)) {
-                           handleDeleteOrder(selectedOrder.id, customerId.toString());
-                        }
-                      }}
-                      className="bg-red-600 hover:bg-red-700 text-white"
-                    >
-                      Delete
-                    </Button>
-                  )}
+                 {shouldShowDeleteButton() && (
+                  <Button 
+                    type="button"
+                    onClick={() => {
+                      if (!selectedOrder) return;
+                      
+                      // Close the view modal first
+                      setIsModalOpen(false);
+                      
+                      // Set up the delete modal with the selected order
+                      setTimeout(() => {
+                        const customerName = getOrderDisplayName(selectedOrder);
+                        setOrderToDelete({ order: selectedOrder, customerName });
+                        setIsDeleteModalOpen(true);
+                      }, 100);
+                    }}
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    Delete
+                  </Button>
+                )}
                   {shouldShowEditButton() && (
                     <Button 
                       type="button"
@@ -1955,6 +2299,63 @@ const getLoadingState = () => {
           title={messageModal.title}
           message={messageModal.message}
         />
+
+        {/* Delete Confirmation Modal */}
+        {isDeleteModalOpen && (
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div 
+              className="fixed inset-0 bg-blue-50/70 bg-opacity-50 transition-opacity"
+              onClick={() => {
+                setIsDeleteModalOpen(false);
+                setOrderToDelete(null);
+              }}
+            />
+            <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+              <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">
+                &#8203;
+              </span>
+              <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full relative">
+                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                  <div className="sm:flex sm:items-start">
+                    <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                      <Trash2 className="h-6 w-6 text-red-600" />
+                    </div>
+                    <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                      <h3 className="text-lg leading-6 font-medium text-gray-900">
+                        Delete Order
+                      </h3>
+                      <div className="mt-2">
+                        <p className="text-sm text-gray-500">
+                          Are you sure you want to delete the order for "{orderToDelete ? orderToDelete.customerName : 'this customer'}"? This action cannot be undone.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                  <button
+                    type="button"
+                    onClick={confirmDelete}
+                    disabled={getLoadingState()}
+                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed sm:ml-3 sm:w-auto sm:text-sm"
+                  >
+                    {getLoadingState() ? 'Deleting...' : 'Delete'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDeleteModalOpen(false);
+                      setOrderToDelete(null);
+                    }}
+                    className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

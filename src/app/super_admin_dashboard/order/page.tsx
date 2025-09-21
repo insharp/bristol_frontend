@@ -10,12 +10,12 @@ const OrdersPage = () => {
         permissions={{
           canCreate: true,
           canView: true,
-          canEdit: false,
-          canDelete: false
+          canEdit: true,
+          canDelete: true
         }}
         viewModalButtons={{
-          showEditButton: false,
-          showDeleteButton: false
+          showEditButton: true,
+          showDeleteButton: true
         }}
       />
     </div>

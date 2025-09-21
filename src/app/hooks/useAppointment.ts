@@ -47,10 +47,18 @@ export interface ReminderStats {
   upcoming_reminders: number;
 }
 
+// Define Order interface for type safety
+export interface Order {
+  id: number;
+  order_number: string;
+  customer_id?: number;
+}
+
 export const useAppointments = (apiEndpoint?: string) => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [customers, setCustomers] = useState<{ id: number; name: string }[]>([]);
-  const [orders, setOrders] = useState<{ id: number; order_number: string }[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -82,40 +90,205 @@ export const useAppointments = (apiEndpoint?: string) => {
     upcoming_reminders: 0,
   });
 
-  const baseUrl = apiEndpoint || `http://localhost:8000/appointment`;
+  const baseUrl = apiEndpoint || `http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}/appointment`;
   const customerBaseUrl = `http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}`;
+  const ordersBaseUrl = `http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}`;
   const today = new Date().toISOString().split("T")[0];
 
   // Fetch customers from database
-  const fetchCustomers = async () => {
+const fetchCustomers = async () => {
+  try {
+    console.log('Fetching customers from:', `${customerBaseUrl}/customer`);
+    const res = await fetch(`${customerBaseUrl}/customer`, { 
+      credentials: "include" 
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      console.log('Customers API response:', data);
+      const customerData = data.data || data;
+      
+      // Transform customer data with better null handling
+      const transformedCustomers = customerData.map((customer: any) => {
+        console.log(`Processing customer ${customer.id}:`, {
+          customer_type: customer.customer_type,
+          customer_name: customer.customer_name,
+          first_name: customer.first_name,
+          company_name: customer.company_name,
+          contact_person: customer.contact_person
+        });
+        
+        let displayName;
+        
+        // Check if it's an individual customer (normal/individual type)
+        if (customer.customer_type === 'normal' || customer.customer_type === 'individual' || customer.customer_type === 'personal') {
+          // For individual customers, try multiple possible field names
+          displayName = customer.customer_name || 
+                       customer.first_name || 
+                       customer.name || 
+                       customer.full_name;
+          
+          // If no valid name found, use fallback
+          if (!displayName || displayName === 'null' || displayName.toString().trim() === '') {
+            displayName = `Individual Customer #${customer.id}`;
+          }
+        } else if (customer.customer_type === 'corporate' || customer.customer_type === 'company' || customer.customer_type === 'business') {
+          // For corporate customers
+          const companyName = customer.company_name || 'Unknown Company';
+          const contactPerson = customer.contact_person || 'Unknown Contact';
+          displayName = `${companyName} (${contactPerson})`;
+        } else {
+          // Unknown customer type - check which fields have data
+          if (customer.company_name || customer.contact_person) {
+            // Looks like corporate
+            const companyName = customer.company_name || 'Unknown Company';
+            const contactPerson = customer.contact_person || 'Unknown Contact';
+            displayName = `${companyName} (${contactPerson})`;
+          } else {
+            // Treat as individual
+            displayName = customer.customer_name || 
+                         customer.first_name || 
+                         customer.name || 
+                         customer.full_name ||
+                         `Customer #${customer.id}`;
+          }
+        }
+        
+        // Final cleanup
+        if (!displayName || displayName === 'null' || displayName.toString().trim() === '') {
+          displayName = `Customer #${customer.id}`;
+        }
+        
+        return {
+          id: parseInt(customer.id),
+          name: displayName.toString().trim()
+        };
+      });
+      
+      console.log('Transformed customers:', transformedCustomers);
+      setCustomers(transformedCustomers);
+      return { success: true, data: transformedCustomers };
+    } else {
+      console.error("Failed to fetch customers, status:", res.status);
+      setCustomers([]);
+      return { success: false, error: "Failed to fetch customers" };
+    }
+  } catch (err) {
+    console.error("Error fetching customers:", err);
+    setCustomers([]);
+    return { success: false, error: "Connection error while fetching customers" };
+  }
+};
+
+  // Updated fetchOrders to store all orders and optionally filter by customer
+  const fetchOrders = async (customerId?: number) => {
     try {
-      const res = await fetch(`${customerBaseUrl}/customer`, { 
+      const url = `${ordersBaseUrl}/orders/all`;
+      console.log('Fetching orders from:', url);
+      console.log('Customer ID filter:', customerId);
+      
+      const res = await fetch(url, { 
         credentials: "include" 
       });
       
+      console.log('Orders API response status:', res.status);
+      console.log('Orders API response ok:', res.ok);
+      
       if (res.ok) {
         const data = await res.json();
-        const customerData = data.data || data;
+        console.log('Orders API raw response:', data);
         
-        // Transform customer data to match the expected format
-        const transformedCustomers = customerData.map((customer: any) => ({
-          id: parseInt(customer.id),
-          name: customer.customer_type === 'normal' 
-            ? customer.customer_name 
-            : `${customer.company_name} (${customer.contact_person})`
-        }));
+        // Handle different possible response structures
+        let orderData;
+        if (Array.isArray(data)) {
+          orderData = data;
+        } else if (data.data && Array.isArray(data.data)) {
+          orderData = data.data;
+        } else if (data.orders && Array.isArray(data.orders)) {
+          orderData = data.orders;
+        } else {
+          console.error('Unexpected orders data structure:', data);
+          orderData = [];
+        }
         
-        setCustomers(transformedCustomers);
-        return { success: true, data: transformedCustomers };
+        console.log('Orders data to transform:', orderData);
+        
+        // Transform order data with better error handling and include customer_id
+        const transformedOrders: Order[] = orderData
+          .filter((order: any) => order && (order.id || order.order_id)) // Filter out invalid orders
+          .map((order: any): Order => {
+            const id = order.id || order.order_id;
+            const orderNumber = order.order_number || order.orderNumber || order.number || `${id}`;
+            const orderCustomerId = order.customer_id || order.customerId;
+            
+            return {
+              id: parseInt(String(id)),
+              order_number: String(orderNumber),
+              customer_id: orderCustomerId ? parseInt(String(orderCustomerId)) : undefined
+            };
+          })
+          .filter((order: Order) => !isNaN(order.id)); // Remove any with invalid IDs
+        
+        console.log('Transformed orders:', transformedOrders);
+        
+        // Store all orders for reference
+        setAllOrders(transformedOrders);
+        
+        // Filter orders by customer if customerId is provided
+        let filteredOrders = transformedOrders;
+        if (customerId) {
+          filteredOrders = transformedOrders.filter((order: Order) => 
+            order.customer_id === parseInt(String(customerId))
+          );
+          console.log(`Filtered orders for customer ${customerId}:`, filteredOrders);
+        }
+        
+        setOrders(filteredOrders);
+        console.log('Number of orders loaded:', filteredOrders.length);
+        
+        return { success: true, data: filteredOrders };
       } else {
-        console.error("Failed to fetch customers");
-        setCustomers([]);
-        return { success: false, error: "Failed to fetch customers" };
+        const errorText = await res.text();
+        console.error("Failed to fetch orders, status:", res.status, "response:", errorText);
+        setOrders([]);
+        return { success: false, error: `Failed to fetch orders: ${res.status} ${errorText}` };
       }
     } catch (err) {
-      console.error("Error fetching customers:", err);
-      setCustomers([]);
-      return { success: false, error: "Connection error while fetching customers" };
+      console.error("Error fetching orders:", err);
+      setOrders([]);
+      return { success: false, error: `Connection error while fetching orders: ${err}` };
+    }
+  };
+
+  // New function to filter orders based on selected customer
+  const filterOrdersByCustomer = (customerId: string) => {
+    console.log('Filtering orders by customer:', customerId);
+    console.log('All orders available:', allOrders);
+    
+    if (!customerId) {
+      // If no customer selected, show all orders
+      setOrders(allOrders);
+      return;
+    }
+    
+    const customerIdNum = parseInt(customerId);
+    const filteredOrders = allOrders.filter((order: Order) => 
+      order.customer_id === customerIdNum
+    );
+    
+    console.log(`Orders filtered for customer ${customerIdNum}:`, filteredOrders);
+    setOrders(filteredOrders);
+    
+    // Clear the selected order if it doesn't belong to the new customer
+    if (formData.order_id) {
+      const selectedOrderBelongsToCustomer = filteredOrders.some((order: Order) => 
+        order.id === parseInt(formData.order_id)
+      );
+      
+      if (!selectedOrderBelongsToCustomer) {
+        console.log('Clearing selected order as it does not belong to the selected customer');
+        setFormData(prev => ({ ...prev, order_id: "" }));
+      }
     }
   };
   
@@ -203,6 +376,9 @@ export const useAppointments = (apiEndpoint?: string) => {
         notes: "",
         status: undefined,
       });
+
+      // Reset orders to show all orders when form is cleared
+      setOrders(allOrders);
 
       // Refresh appointments list
       await fetchAppointments();
@@ -425,29 +601,47 @@ export const useAppointments = (apiEndpoint?: string) => {
     });
   };
 
+  // FIXED: Improved useEffect with error handling
   useEffect(() => {
-    // Fetch customers from database
-    fetchCustomers();
+    const loadInitialData = async () => {
+      console.log('=== LOADING INITIAL DATA ===');
+      
+      // Fetch customers and orders from database
+      const customersResult = await fetchCustomers();
+      const ordersResult = await fetchOrders(); // Load all orders initially
+      const appointmentsResult = await fetchAppointments();
+      
+      console.log('Initial data loading results:', {
+        customers: customersResult.success ? 'Success' : customersResult.error,
+        orders: ordersResult.success ? 'Success' : ordersResult.error,
+        appointments: appointmentsResult.success ? 'Success' : appointmentsResult.error
+      });
+      
+      console.log('=== INITIAL DATA LOADED ===');
+    };
     
-    // Fetch appointments
-    fetchAppointments();
-    
-    // Keep orders as mock data for now
-    setOrders([
-      { id: 1, order_number: "ORD-001" },
-      { id: 2, order_number: "ORD-002" },
-      { id: 3, order_number: "ORD-003" },
-    ]);
+    loadInitialData();
   }, []);
 
   useEffect(() => {
     fetchAppointments();
   }, [filters]);
 
+  // New useEffect to filter orders when customer changes
+  useEffect(() => {
+    if (formData.customer_id) {
+      filterOrdersByCustomer(formData.customer_id);
+    } else {
+      // If no customer selected, show all orders
+      setOrders(allOrders);
+    }
+  }, [formData.customer_id, allOrders]);
+
   return {
     appointments,
     customers,
     orders,
+    allOrders,
     today,
     todayAppointments: appointments.filter((a) => a.appointment_date === today),
     loading,
@@ -459,6 +653,8 @@ export const useAppointments = (apiEndpoint?: string) => {
     clearFilters,
     fetchAppointments,
     fetchCustomers,
+    fetchOrders,
+    filterOrdersByCustomer,
     createAppointment,
     updateAppointment,
     deleteAppointment,

@@ -8,12 +8,12 @@ const AppointmentPage = () => {
           title="Appointment Management"
           permissions={{
             canCreate: true,
-            canEdit: true,
-            canDelete: true,
+            canEdit: false,
+            canDelete: false,
             canView: true,
-
+            
           }}
-           
+         
          />
   );
 };

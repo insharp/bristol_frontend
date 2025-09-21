@@ -27,6 +27,11 @@ export enum SizeTypeEnum {
   XXL = "double_large"
 }
 
+export enum ProductFilterType {
+  DEFAULT = "default",
+  CUSTOM = "custom"
+}
+
 // Customer Types
 export interface Customer {
   id: number;
@@ -50,6 +55,7 @@ export interface Product {
   description?: string;
   style_option?: string;
   comments?: string;
+  customer_id?: number | null; // For custom products
   created_at: string;
   updated_at: string;
 }
@@ -153,7 +159,7 @@ export interface SingleOrderUpdate {
 }
 
 export interface SingleOrderResponse {
-  id: number;
+  order_id: number;
   customerid: number;
   productid: number;
   quantity: number;
@@ -184,7 +190,7 @@ export interface BulkOrderCustomUpdate {
 }
 
 export interface BulkOrderCustomResponse {
-  id: number;
+  order_id: number;
   Bulkid: number;
   unit_price: number;
   quantity: number;
@@ -223,7 +229,7 @@ export interface BulkOrderDefaultUpdate {
 }
 
 export interface BulkOrderDefaultResponse {
-  id: number;
+  order_id: number;
   CustomerID: number;
   ProductID: number;
   quantity_by_size: Record<string, number>;
@@ -250,6 +256,7 @@ interface OrderState {
 interface DropdownData {
   customers: Customer[];
   products: Product[];
+  defaultProducts: Product[]; // Products with no customer_id
   customersLoading: boolean;
   productsLoading: boolean;
   customersError: string | null;
@@ -266,7 +273,7 @@ interface MeasurementData {
 }
 
 // Base API URL - adjust as needed
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = `http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}`;
 
 // Utility function to get request headers with session cookies
 const getAuthHeaders = () => ({
@@ -313,6 +320,7 @@ export const useDropdownData = () => {
   const [dropdownData, setDropdownData] = useState<DropdownData>({
     customers: [],
     products: [],
+    defaultProducts: [],
     customersLoading: false,
     productsLoading: false,
     customersError: null,
@@ -348,12 +356,41 @@ export const useDropdownData = () => {
       (error) => setDropdownData(prev => ({ ...prev, productsError: error }))
     ).then(data => {
      if (data && Array.isArray(data)) {
- setDropdownData(prev => ({ ...prev, products: data as Product[] }));
-}
+       const allProducts = data as Product[];
+       const defaultProducts = allProducts.filter(product => 
+         !product.customer_id || product.customer_id === null
+       );
+       
+       setDropdownData(prev => ({ 
+         ...prev, 
+         products: allProducts,
+         defaultProducts: defaultProducts
+       }));
+      }
     }).catch(() => {
       // Error already handled in handleApiCall
     });
   }, []);
+
+  // NEW: Get products filtered by type and customer
+  const getFilteredProducts = useCallback((
+    filterType: ProductFilterType, 
+    customerId?: number
+  ): Product[] => {
+    if (filterType === ProductFilterType.DEFAULT) {
+      return dropdownData.defaultProducts;
+    } else if (filterType === ProductFilterType.CUSTOM && customerId) {
+      return dropdownData.products.filter(product => 
+        product.customer_id === customerId
+      );
+    }
+    return [];
+  }, [dropdownData.products, dropdownData.defaultProducts]);
+
+  // NEW: Check if customer has custom products
+  const hasCustomProducts = useCallback((customerId: number): boolean => {
+    return dropdownData.products.some(product => product.customer_id === customerId);
+  }, [dropdownData.products]);
 
   const refreshDropdownData = useCallback(async () => {
     await Promise.all([fetchCustomers(), fetchProducts()]);
@@ -369,6 +406,8 @@ export const useDropdownData = () => {
     fetchCustomers,
     fetchProducts,
     refreshDropdownData,
+    getFilteredProducts, // NEW
+    hasCustomProducts,   // NEW
   };
 };
 
@@ -988,3 +1027,9 @@ export const ORDER_STATUS_OPTIONS = [
 
 // Export size options for bulk default orders
 export const SIZE_OPTIONS = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL'];
+
+// Export product filter type options
+export const PRODUCT_FILTER_OPTIONS = [
+  { value: ProductFilterType.DEFAULT, label: 'Default Products' },
+  { value: ProductFilterType.CUSTOM, label: 'Custom Products' },
+];
