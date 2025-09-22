@@ -787,7 +787,7 @@ const handleCreateOrder = async () => {
       const result = await createSingleOrder(orderData);
       if (result) {
         closeModal();
-        showSuccessMessage('Success!', `Single order for Customer ID: ${formData.customerId} has been created successfully.`);
+        showSuccessMessage('Success!', `Order for Customer ID: ${formData.customerId} has been created successfully.`);
         await loadOrders();
       }
     } else if (activeTab === 'bulk') { 
@@ -861,7 +861,7 @@ const handleCreateOrder = async () => {
         closeModal();
         const customer = getCustomerById(parseInt(bulkDefaultFormData.customerId));
         const customerName = customer ? getCustomerDisplayName(customer) : 'Customer';
-        showSuccessMessage('Success!', `Bulk default order for ${customerName} has been created successfully.`);
+        showSuccessMessage('Success!', `Default order for ${customerName} has been created successfully.`);
         await loadOrders();
       }
     }
@@ -876,7 +876,7 @@ const handleCreateOrder = async () => {
   if (error?.message?.toLowerCase().includes('measurements','not','exist')) {
     showErrorMessage('Invalid Size', `No standard sizes found for ${productName}. Please add available sizes for this product before creating the order.`);
   } else {
-    showErrorMessage('Creation Failed', `Failed to create bulk default order for ${productName}. Please try again.`);
+    showErrorMessage('Creation Failed', `Failed to create  default order for ${productName}. Please try again.`);
   }
 }
 };
@@ -901,7 +901,7 @@ const handleCreateOrder = async () => {
           closeModal();
           const customer = getCustomerById(parseInt(formData.customerId));
           const customerName = customer ? getCustomerDisplayName(customer) : 'Customer';
-          showSuccessMessage('Success!', `Single order for Customer ID: ${formData.customerId} has been updated successfully.`);
+          showSuccessMessage('Success!', `Order for Customer ID: ${formData.customerId} has been updated successfully.`);
           await loadOrders();
         }
       }else if (activeTab === 'bulk' && 'Bulkid' in selectedOrder) {
@@ -975,7 +975,7 @@ const handleCreateOrder = async () => {
         closeModal();
         const customer = getCustomerById(parseInt(bulkDefaultFormData.customerId));
         const customerName = customer ? getCustomerDisplayName(customer) : 'Customer';
-        showSuccessMessage('Success!', `Bulk default order for ${customerName} has been updated successfully.`);
+        showSuccessMessage('Success!', `Default order for ${customerName} has been updated successfully.`);
         await loadOrders();
       }
     }
@@ -989,13 +989,13 @@ const handleCreateOrder = async () => {
     try {
       if (activeTab === 'single') {
         await deleteSingleOrder(orderId);
-        showSuccessMessage('Success!', `Single order for Customer ID: ${customerIdDisplay} has been deleted.`);
+        showSuccessMessage('Success!', `Order for Customer ID: ${customerIdDisplay} has been deleted.`);
       }else if (activeTab === 'bulk') {
       await deleteBulkCustomOrder(orderId);
       showSuccessMessage('Success!', `Bulk custom order for Bulk ID: ${customerIdDisplay} has been deleted.`);
     } else if (activeTab === 'default') {
         await deleteBulkDefaultOrder(orderId);
-       showSuccessMessage('Success!', `Bulk default order for Customer ID: ${customerIdDisplay} has been deleted.`);
+       showSuccessMessage('Success!', `Default order for Customer ID: ${customerIdDisplay} has been deleted.`);
       }
       await loadOrders();
     } catch (error) {
