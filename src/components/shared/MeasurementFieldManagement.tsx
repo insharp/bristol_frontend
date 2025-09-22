@@ -225,23 +225,16 @@ const MeasurementFieldManagement: React.FC<MeasurementFieldManagementProps> = ({
 
   // Table columns - simplified to only show product and field count
   const columns = [
-    { 
-      key: "product_id", 
-      label: "Product ID", 
-      minWidth: "50px",
-      render: (value: number) => {
-        const product = products.find(p => 
-          p.id === value.toString() || 
-          parseInt(p.id) === value || 
-          Number(p.id) === value
-        );
-        return (
-          <span className="font-medium text-blue-600">
-            {product ? product.category_name : value}
-          </span>
-        );
-      }
-    },
+   { 
+    key: "product_id", 
+    label: "Product ID", 
+    minWidth: "100px",
+    render: (value: number) => (
+      <span className="font-medium text-gray-900">
+        {value}
+      </span>
+    )
+  },
 
     { 
       key: "product_name", 
@@ -254,7 +247,7 @@ const MeasurementFieldManagement: React.FC<MeasurementFieldManagementProps> = ({
           Number(p.id) === value
         );
         return (
-          <span className="font-medium text-blue-600">
+          <span className="font-medium ">
             {product ? product.category_name : value}
           </span>
         );
