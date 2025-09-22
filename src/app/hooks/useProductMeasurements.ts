@@ -12,11 +12,11 @@ export interface MeasurementField {
   updated_at: string;
 }
 
-
 export interface ProductMeasurement {
   id: number;
   product_id: number;
   product_name: string;
+  customer_name?: string; // Added customer name
   size: string;
   measurements: Record<string, any>;
   created_at: string;
@@ -31,6 +31,18 @@ export interface CreateProductMeasurementData {
 
 export interface Product {
   id: number;
+  category_name: string;  // Changed from 'name' to 'category_name'
+  base_price: number;
+  description?: string;
+  style_option: string;
+  comments?: string;
+  customer_id?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Customer {
+  id: number;
   name: string;
 }
 
@@ -38,7 +50,7 @@ const useProductMeasurement = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-    // Use custom endpoint or default
+  // Use custom endpoint or default
   const baseUrl =  
     `http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}`;
 
@@ -61,8 +73,7 @@ const useProductMeasurement = () => {
     }
   }, []);
 
-  
-//   // Get measurement fields by product ID
+  // Get measurement fields by product ID
   const getMeasurementFields = useCallback(async (productId: number): Promise<MeasurementField[]> => {
     setLoading(true);
     setError(null);
@@ -80,7 +91,6 @@ const useProductMeasurement = () => {
       setLoading(false);
     }
   }, []);
-
 
   // Get all products for dropdown
   const getProducts = useCallback(async (): Promise<Product[]> => {
@@ -101,22 +111,37 @@ const useProductMeasurement = () => {
     }
   }, []);
 
-
+  // Get all customers for dropdown
+  const getCustomers = useCallback(async (): Promise<Customer[]> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`${baseUrl}/customer`,{credentials:"include"});
+      if (!response.ok) {
+        throw new Error('Failed to fetch customers');
+      }
+      const data = await response.json();
+      return data;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   // Create product measurement
   const createProductMeasurement = useCallback(async (data: CreateProductMeasurementData): Promise<ProductMeasurement> => {
     setLoading(true);
     setError(null);
     try {
-    console.log(data)
+      console.log(data)
       const response = await fetch(`${baseUrl}/product-measurement`, {
-        
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          
         },
-         credentials: "include",
+        credentials: "include",
         body: JSON.stringify(data),
       });
       
@@ -134,13 +159,12 @@ const useProductMeasurement = () => {
     }
   }, []);
 
-
   // Update product measurement
   const updateProductMeasurement = useCallback(async (id: number, data: CreateProductMeasurementData): Promise<ProductMeasurement> => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${baseUrl}/${id}`, {
+      const response = await fetch(`${baseUrl}/product-measurement/${id}`, {
         credentials:"include",
         method: 'PUT',
         headers: {
@@ -163,44 +187,39 @@ const useProductMeasurement = () => {
     }
   }, []);
 
+  // Delete product measurement by product ID and size
+  const deleteProductMeasurement = useCallback(async (productId: number, size: string): Promise<void> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`${baseUrl}/product-measurement/product/${productId}/size/${size}`, {
+        credentials:"include",
+        method: 'DELETE',
+      });
+     
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to delete product measurement');
+      }
 
-
-// Delete product measurement by product ID and size
-const deleteProductMeasurement = useCallback(async (productId: number, size: string): Promise<void> => {
-  setLoading(true);
-  setError(null);
-  try {
-    const response = await fetch(`${baseUrl}/product-measurement/product/${productId}/size/${size}`, {
-      credentials:"include",
-      method: 'DELETE',
-    });
-   
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || 'Failed to delete product measurement');
+      // Optionally handle the success response
+      const result = await response.json();
+      console.log('Delete successful:', result.message);
+      
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      throw err;
+    } finally {
+      setLoading(false);
     }
-
-    // Optionally handle the success response
-    const result = await response.json();
-    console.log('Delete successful:', result.message);
-    
-  } catch (err) {
-    setError(err instanceof Error ? err.message : 'An error occurred');
-    throw err;
-  } finally {
-    setLoading(false);
-  }
-}, []);
-
-
-
+  }, []);
 
   // Get single product measurement
   const getProductMeasurement = useCallback(async (id: number): Promise<ProductMeasurement> => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${baseUrl}/${id}`,{credentials:"include"});
+      const response = await fetch(`${baseUrl}/product-measurement/${id}`,{credentials:"include"});
       if (!response.ok) {
         throw new Error('Failed to fetch product measurement');
       }
@@ -214,13 +233,13 @@ const deleteProductMeasurement = useCallback(async (productId: number, size: str
     }
   }, []);
 
-
   return {
     loading,
     error,
     getProductMeasurements,
     getMeasurementFields,
     getProducts,
+    getCustomers, // Added getCustomers function
     createProductMeasurement,
     updateProductMeasurement,
     deleteProductMeasurement,

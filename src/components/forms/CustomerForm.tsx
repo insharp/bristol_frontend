@@ -28,6 +28,9 @@ interface CustomerFormProps {
   onFormDataChange: (data: any) => void;
   onCustomerTypeChange: (type: "individual" | "corporate") => void;
   onSubmit: (e: React.FormEvent) => void;
+  // Add these minimal props for view mode functionality
+  onEditClick?: () => void;
+  onDeleteClick?: () => void;
 }
 
 const CustomerForm: React.FC<CustomerFormProps> = ({
@@ -39,7 +42,9 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
   onClose,
   onFormDataChange,
   onCustomerTypeChange,
-  onSubmit
+  onSubmit,
+  onEditClick,
+  onDeleteClick
 }) => {
   return (
     <>
@@ -213,17 +218,28 @@ const CustomerForm: React.FC<CustomerFormProps> = ({
               />
             </div>
 
-            {/* Form Actions */}
+            {/* Form Actions - ONLY UPDATE THIS SECTION */}
             <div className="flex justify-end pt-6 border-t border-gray-200 space-x-3">
-              <Button
-                type="button"
-                onClick={onClose}
-                className="bg-white"
-                textColor="text-gray-800"
-              >
-                Cancel
-              </Button>
-              {modalMode !== "view" && (
+              {modalMode === "view" ? (
+                // View Mode - Add Edit and Delete buttons
+                <>
+                  <Button 
+                    type="button"
+                    onClick={onDeleteClick}
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    Delete
+                  </Button>
+                  <Button 
+                    type="button"
+                    onClick={onEditClick}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    Edit
+                  </Button>
+                </>
+              ) : (
+                // Create/Edit Mode - Keep existing buttons
                 <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
                   {modalMode === "create" ? "Create Customer" : "Update Customer"}
                 </Button>

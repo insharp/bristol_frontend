@@ -70,7 +70,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
             {/* Employee Code */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Employee Code <span className="text-red-500">*</span>
+                Employee Code <span>*</span>
               </label>
               <input
                 type="text"
@@ -88,7 +88,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
             {/* Employee Name */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Employee Name <span className="text-red-500">*</span>
+                Employee Name <span>*</span>
               </label>
               <input
                 type="text"

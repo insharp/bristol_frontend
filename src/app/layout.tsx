@@ -26,7 +26,28 @@ export default function RootLayout({
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning={true}
       >
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              const attributesToRemove = ['bis_skin_checked', '__processed_40cf5f01-2d77-495e-bf0d-47da14f7c36f__', 'bis_register'];
+              function cleanAttributes() {
+                [document.body, ...document.querySelectorAll('*')].forEach(el => {
+                  attributesToRemove.forEach(attr => el?.removeAttribute?.(attr));
+                });
+              }
+              cleanAttributes();
+              new MutationObserver(mutations => {
+                mutations.forEach(mutation => {
+                  if (mutation.type === 'attributes' && attributesToRemove.includes(mutation.attributeName)) {
+                    mutation.target.removeAttribute(mutation.attributeName);
+                  }
+                });
+              }).observe(document.body, { attributes: true, attributeFilter: attributesToRemove, subtree: true });
+            `,
+          }}
+        />
         {children}
       </body>
     </html>

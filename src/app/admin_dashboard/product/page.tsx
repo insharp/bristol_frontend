@@ -7,7 +7,7 @@ const AdminProductsPage = () => {
     <ProductManagement
       title="Admin - Product Management"
       permissions={{
-        canCreate: false,
+        canCreate: true,
         canEdit: false,
         canDelete: false,
         canView: true

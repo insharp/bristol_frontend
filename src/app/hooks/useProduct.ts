@@ -1,5 +1,5 @@
 // hooks/useProducts.ts
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 export interface Product {
   id: string;
@@ -8,127 +8,190 @@ export interface Product {
   description: string;
   style_option: string;
   comments?: string;
+  customer_id?: number | null; // Allow null values
   created_at?: string;
   updated_at?: string;
+}
+
+// Match ProductFilter backend schema
+export interface ProductFilter {
+  category_name?: string;
+  min_price?: number;
+  max_price?: number;
+  style_option?: string;
+  search?: string;
+  customer_id?: number;
 }
 
 export const useProducts = (apiEndpoint?: string) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Use custom endpoint or default
-  const baseUrl = apiEndpoint || 
+  const baseUrl =
+    apiEndpoint ||
     `http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}`;
 
+  // Helper to build query string from filters
+  const buildQuery = (filters?: ProductFilter) => {
+    if (!filters) return '';
+    const params = new URLSearchParams();
 
-  const fetchProducts = async () => {
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, String(value));
+      }
+    });
+
+    return params.toString() ? `?${params.toString()}` : '';
+  };
+
+  const fetchProducts = async (filters?: ProductFilter) => {
     setLoading(true);
     try {
-      const res = await fetch(
-        `${baseUrl}/product`,
-        { credentials: "include" }
-      );
-      
+      const query = buildQuery(filters);
+      const res = await fetch(`${baseUrl}/product${query}`, {
+        credentials: 'include',
+      });
+
       if (res.ok) {
-        const data = await res.json();
-        console.log(data);
-        setProducts(data.data || data);
-        return { success: true, data: data.data || data };
-      } else {
+      const data = await res.json();
+      console.log('Raw API response:', data); 
+      
+      const productsData = data.data || data.products || data;
+      console.log('Processed products data:', productsData); 
+      
+      setProducts(Array.isArray(productsData) ? productsData : []);
+      return { success: true, data: productsData };
+    } else {
         return { success: false, error: 'Failed to load products' };
       }
     } catch (err) {
-      console.error("Error fetching products:", err);
+      console.error('Error fetching products:', err);
       return { success: false, error: 'Connection error' };
     } finally {
       setLoading(false);
     }
   };
 
-
   const createProduct = async (formData: any) => {
     try {
-      const requestData = {
+      const requestData: any = {
         category_name: formData.category_name,
         base_price: parseFloat(formData.base_price),
         description: formData.description,
         style_option: formData.style_option,
-        comments: formData.comments
+        comments: formData.comments || "",
+        customer_id: null, // Always include customer_id, default to null
       };
 
-      const res = await fetch(
-        `${baseUrl}/product`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(requestData),
-        }
-      );
+      // Only set customer_id if it exists and is not empty
+      if (formData.customer_id && formData.customer_id.trim() !== '') {
+        requestData.customer_id = parseInt(formData.customer_id);
+      }
+
+      console.log('Sending request data:', requestData); // Debug log
+
+      const res = await fetch(`${baseUrl}/product`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(requestData),
+      });
 
       if (res.ok) {
         await fetchProducts();
         return { success: true, message: 'Product created successfully' };
       } else {
         const errorData = await res.json();
-        return { success: false, error: errorData.message || 'Failed to create product' };
+        console.error('API Error Response:', errorData);
+        console.error('Response Status:', res.status);
+        
+        // Handle different error response structures
+        let errorMessage = 'Failed to create product';
+        if (errorData.detail) {
+          if (Array.isArray(errorData.detail)) {
+            // Pydantic validation errors
+            errorMessage = errorData.detail.map((err: any) => err.msg || err.message || JSON.stringify(err)).join(', ');
+          } else if (typeof errorData.detail === 'string') {
+            errorMessage = errorData.detail;
+          } else {
+            errorMessage = JSON.stringify(errorData.detail);
+          }
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error) {
+          errorMessage = errorData.error;
+        }
+        
+        return {
+          success: false,
+          error: errorMessage,
+        };
       }
     } catch (err) {
+      console.error('Create Product Error:', err);
       return { success: false, error: 'Unable to create product' };
     }
   };
 
-  
   const updateProduct = async (productId: string, formData: any) => {
     try {
-      const requestData = {
+      const requestData: any = {
         category_name: formData.category_name,
         base_price: parseFloat(formData.base_price),
         description: formData.description,
         style_option: formData.style_option,
-        comments: formData.comments
+        comments: formData.comments,
+        customer_id: null, // Always include customer_id, default to null
       };
 
-      console.log("prduct",requestData);
+      // Set customer_id if provided
+      if (formData.customer_id && formData.customer_id.trim() !== '') {
+        requestData.customer_id = parseInt(formData.customer_id);
+      }
 
-      const res = await fetch(
-        `${baseUrl}/product/${productId}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(requestData),
-        }
-      );
-      
+      console.log('Sending update data:', requestData);
+
+      const res = await fetch(`${baseUrl}/product/${productId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(requestData),
+      });
+
       if (res.ok) {
         await fetchProducts();
         return { success: true, message: 'Product updated successfully' };
       } else {
         const errorData = await res.json();
-        return { success: false, error: errorData.message || 'Failed to update product' };
+        console.error('API Error Response:', errorData);
+        return {
+          success: false,
+          error: errorData.message || errorData.detail || 'Failed to update product',
+        };
       }
     } catch (err) {
+      console.error('Update Product Error:', err);
       return { success: false, error: 'Unable to update product' };
     }
   };
 
   const deleteProduct = async (productId: string) => {
     try {
-      const res = await fetch(
-        `${baseUrl}/product/${productId}`,
-        {
-          method: "DELETE",
-          credentials: "include",
-        }
-      );
-      
+      const res = await fetch(`${baseUrl}/product/${productId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
       if (res.ok) {
         await fetchProducts();
         return { success: true, message: 'Product deleted successfully' };
       } else {
         const errorData = await res.json();
-        return { success: false, error: errorData.message || 'Failed to delete product' };
+        return {
+          success: false,
+          error: errorData.message || errorData.detail || 'Failed to delete product',
+        };
       }
     } catch (err) {
       return { success: false, error: 'Unable to delete product' };
@@ -141,6 +204,6 @@ export const useProducts = (apiEndpoint?: string) => {
     fetchProducts,
     createProduct,
     updateProduct,
-    deleteProduct
+    deleteProduct,
   };
 };
