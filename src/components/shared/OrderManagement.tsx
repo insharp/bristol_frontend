@@ -236,6 +236,67 @@ const checkMeasurementExists = async (customerId: number, productId: number) => 
   }
 };
 
+
+
+const checkProductMeasurementsExist = async (productId: number, sizes: string[]) => {
+  try {
+    const missingMeasurements: string[] = [];
+    
+    // Check each selected size
+    for (const size of sizes) {
+      // Convert display size (XL) to backend format (extra_large)
+      const backendSize = convertSizeToBackend(size);
+      const measurement = await measurements.getProductMeasurementsBySize(productId, backendSize);
+      
+      if (!measurement) {
+        missingMeasurements.push(size);
+      }
+    }
+    
+    return {
+      isValid: missingMeasurements.length === 0,
+      missingMeasurements
+    };
+  } catch (error) {
+    console.error('Error checking product measurements:', error);
+    return {
+      isValid: false,
+      missingMeasurements: sizes // Assume all are missing on error
+    };
+  }
+};
+
+// Helper function to convert display size to backend format
+const convertSizeToBackend = (size: string): string => {
+  const sizeMap: Record<string, string> = {
+    'XXS': 'double_extra_small',
+    'XS': 'extra_small',
+    'S': 'small',
+    'M': 'medium',
+    'L': 'large',
+    'XL': 'extra_large',
+    'XXL': 'double_large',
+    'XXXL': 'triple_extra_large'
+  };
+  
+  return sizeMap[size] || size.toLowerCase();
+};
+
+const convertSizeToDisplay = (backendSize: string): string => {
+  const sizeMap: Record<string, string> = {
+    'double_extra_small': 'XXS',
+    'extra_small': 'XS',
+    'small': 'S',
+    'medium': 'M',
+    'large': 'L',
+    'extra_large': 'XL',
+    'double_large': 'XXL',
+    'triple_extra_large': 'XXXL'
+  };
+  
+  return sizeMap[backendSize] || backendSize;
+};
+
   // Tab state
   const [activeTab, setActiveTab] = useState<TabType>('single');
 
@@ -631,9 +692,8 @@ const handleBulkCustomInputChange = (field: keyof BulkCustomFormData, value: str
     });
   }
   else {
-    // Bulk default order
     const sizeQuantities = Object.entries(order.quantity_by_size).map(([size, qty]) => ({
-      size,
+      size: convertSizeToDisplay(size), // Convert backend format to display format
       quantity: qty.toString()
     }));
     
@@ -695,7 +755,6 @@ const handleBulkCustomInputChange = (field: keyof BulkCustomFormData, value: str
   };
 
   // CRUD handlers
-// Fixed handleCreateOrder function - replace the existing one in your component
 
 const handleCreateOrder = async () => {
   if (!validateForm()) return;
@@ -750,11 +809,40 @@ const handleCreateOrder = async () => {
         await loadOrders();
       }
     } else if (activeTab === 'default') {
+     const selectedSizes = bulkDefaultFormData.sizeQuantities
+        .filter(sq => sq.quantity && parseInt(sq.quantity) > 0)
+        .map(sq => sq.size);
+
+      if (selectedSizes.length === 0) {
+        showErrorMessage('Validation Error', 'At least one size with quantity greater than 0 is required.');
+        return;
+      }
+
+      // Check if product measurements exist for all selected sizes
+      const measurementCheck = await checkProductMeasurementsExist(
+        parseInt(bulkDefaultFormData.productId), 
+        selectedSizes
+      );
+
+      if (!measurementCheck.isValid) {
+        const product = getProductById(parseInt(bulkDefaultFormData.productId));
+        const productName = product ? product.category_name : 'selected product';
+        const missingSizesText = measurementCheck.missingMeasurements.join(', ');
+        
+        showErrorMessage(
+          'Product Measurements Required', 
+          `No standard measurements found for ${productName} in size(s): ${missingSizesText}. Please add product measurements for these sizes before creating the order.`
+        );
+        return;
+      }
+
       // Create quantity_by_size object
       const quantityBySize: Record<string, number> = {};
       bulkDefaultFormData.sizeQuantities.forEach(sq => {
         if (sq.quantity && parseInt(sq.quantity) > 0) {
-          quantityBySize[sq.size] = parseInt(sq.quantity);
+          // Convert to backend format
+          const backendSize = convertSizeToBackend(sq.size);
+          quantityBySize[backendSize] = parseInt(sq.quantity);
         }
       });
 
@@ -773,7 +861,7 @@ const handleCreateOrder = async () => {
         closeModal();
         const customer = getCustomerById(parseInt(bulkDefaultFormData.customerId));
         const customerName = customer ? getCustomerDisplayName(customer) : 'Customer';
-        showSuccessMessage('Success!', `Bulk default order for Customer ID: ${bulkDefaultFormData.customerId} has been created successfully.`);
+        showSuccessMessage('Success!', `Bulk default order for ${customerName} has been created successfully.`);
         await loadOrders();
       }
     }
@@ -835,32 +923,62 @@ const handleCreateOrder = async () => {
       }
     }  else if (activeTab === 'default' && !('quantity' in selectedOrder)) {
         // Create quantity_by_size object
-        const quantityBySize: Record<string, number> = {};
-        bulkDefaultFormData.sizeQuantities.forEach(sq => {
-          if (sq.quantity && parseInt(sq.quantity) > 0) {
-            quantityBySize[sq.size] = parseInt(sq.quantity);
-          }
-        });
+           const selectedSizes = bulkDefaultFormData.sizeQuantities
+        .filter(sq => sq.quantity && parseInt(sq.quantity) > 0)
+        .map(sq => sq.size);
 
-        const orderData = {
-          CustomerID: parseInt(bulkDefaultFormData.customerId),
-          ProductID: parseInt(bulkDefaultFormData.productId),
-          quantity_by_size: quantityBySize,
-          unitprice: parseFloat(bulkDefaultFormData.unitPrice),
-          status: bulkDefaultFormData.status || selectedOrder.status,
-          style_preference: bulkDefaultFormData.stylePreferences || undefined,
-          speacial_request: bulkDefaultFormData.specialNotes || undefined,
-        };
-
-        const result = await updateBulkDefaultOrder(selectedOrder.order_id, orderData);
-        if (result) {
-          closeModal();
-          const customer = getCustomerById(parseInt(bulkDefaultFormData.customerId));
-          const customerName = customer ? getCustomerDisplayName(customer) : 'Customer';
-          showSuccessMessage('Success!', `Bulk default order for Customer ID: ${bulkDefaultFormData.customerId} has been updated successfully.`);
-          await loadOrders();
-        }
+      if (selectedSizes.length === 0) {
+        showErrorMessage('Validation Error', 'At least one size with quantity greater than 0 is required.');
+        return;
       }
+
+      // Check if product measurements exist for all selected sizes
+      const measurementCheck = await checkProductMeasurementsExist(
+        parseInt(bulkDefaultFormData.productId), 
+        selectedSizes
+      );
+
+      if (!measurementCheck.isValid) {
+        const product = getProductById(parseInt(bulkDefaultFormData.productId));
+        const productName = product ? product.category_name : 'selected product';
+        const missingSizesText = measurementCheck.missingMeasurements.join(', ');
+        
+        showErrorMessage(
+          'Product Measurements Required', 
+          `No standard measurements found for ${productName} in size(s): ${missingSizesText}. Please add product measurements for these sizes before updating the order.`
+        );
+        return;
+      }
+
+      // Create quantity_by_size object
+      const quantityBySize: Record<string, number> = {};
+      bulkDefaultFormData.sizeQuantities.forEach(sq => {
+        if (sq.quantity && parseInt(sq.quantity) > 0) {
+          // Convert to backend format
+          const backendSize = convertSizeToBackend(sq.size);
+          quantityBySize[backendSize] = parseInt(sq.quantity);
+        }
+      });
+
+      const orderData = {
+        CustomerID: parseInt(bulkDefaultFormData.customerId),
+        ProductID: parseInt(bulkDefaultFormData.productId),
+        quantity_by_size: quantityBySize,
+        unitprice: parseFloat(bulkDefaultFormData.unitPrice),
+        status: bulkDefaultFormData.status || selectedOrder.status,
+        style_preference: bulkDefaultFormData.stylePreferences || undefined,
+        speacial_request: bulkDefaultFormData.specialNotes || undefined,
+      };
+
+      const result = await updateBulkDefaultOrder(selectedOrder.order_id, orderData);
+      if (result) {
+        closeModal();
+        const customer = getCustomerById(parseInt(bulkDefaultFormData.customerId));
+        const customerName = customer ? getCustomerDisplayName(customer) : 'Customer';
+        showSuccessMessage('Success!', `Bulk default order for ${customerName} has been updated successfully.`);
+        await loadOrders();
+      }
+    }
     } catch (error) {
       console.error('Failed to update order:', error);
       showErrorMessage('Update Failed', 'Failed to update order');
