@@ -24,7 +24,8 @@ export enum SizeTypeEnum {
   M = "medium",
   L = "large",
   XL = "extra_large",
-  XXL = "double_large"
+  XXL = "double_large",
+  XXXL = "triple_extra_large" 
 }
 
 export enum ProductFilterType {
@@ -1026,7 +1027,7 @@ export const ORDER_STATUS_OPTIONS = [
 ];
 
 // Export size options for bulk default orders
-export const SIZE_OPTIONS = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL'];
+export const SIZE_OPTIONS = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL','XXXL'];
 
 // Export product filter type options
 export const PRODUCT_FILTER_OPTIONS = [

@@ -13,7 +13,23 @@ import useProductMeasurement, {
 import MeasurementView from '../ui/mesurement_view';
 import Button from '../ui/button';
 
-const SIZES = ['double_extra_small', 'extra_small', 'small', 'medium', 'large', 'extra_large', 'double_large'];
+const SIZES = ['double_extra_small', 'extra_small', 'small', 'medium', 'large', 'extra_large', 'double_large', 'triple_extra_large'];
+
+// Size formatting function with abbreviations including XXXL
+const formatSize = (size: string) => {
+  const sizeMap: Record<string, string> = {
+    'double_extra_small': 'XXS',
+    'extra_small': 'XS', 
+    'small': 'S',
+    'medium': 'M',
+    'large': 'L',
+    'extra_large': 'XL',
+    'double_large': 'XXL',
+    'triple_extra_large': 'XXXL'
+  };
+  
+  return sizeMap[size] || size.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+};
 
 interface ProductMeasurementProps {
   permissions?: {
@@ -213,7 +229,7 @@ const ProductMeasurementComponent: React.FC<ProductMeasurementProps> = ({
         await deleteProductMeasurement(selectedMeasurement.product_id, selectedMeasurement.size);
         await loadData();
         setIsDeleteModalOpen(false);
-        const measurementName = `${selectedMeasurement.product_name} (Size: ${selectedMeasurement.size})`;
+        const measurementName = `${selectedMeasurement.product_name} (Size: ${formatSize(selectedMeasurement.size)})`;
         setSelectedMeasurement(null);
         showSuccessMessage('Success!', `Measurement for ${measurementName} deleted successfully!`);
       } catch (error) {
@@ -229,13 +245,13 @@ const ProductMeasurementComponent: React.FC<ProductMeasurementProps> = ({
         await updateProductMeasurement(selectedMeasurement.id, data);
         setIsEditModalOpen(false);
         const productName = products.find(p => p.id === data.product_id)?.category_name || 'Selected Product';
-        const formattedSize = data.size.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        const formattedSize = formatSize(data.size);
         showSuccessMessage('Success!', `Measurement for "${productName}" (Size: ${formattedSize}) has been updated successfully!`);
       } else {
         await createProductMeasurement(data);
         setIsAddModalOpen(false);
         const productName = products.find(p => p.id === data.product_id)?.category_name || 'Selected Product';
-        const formattedSize = data.size.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        const formattedSize = formatSize(data.size);
         showSuccessMessage('Success!', `Measurement for "${productName}" (Size: ${formattedSize}) has been created successfully!`);
       }
       await loadData();
@@ -258,6 +274,11 @@ const ProductMeasurementComponent: React.FC<ProductMeasurementProps> = ({
     {
       key: 'size',
       label: 'Size',
+      render: (value: string) => (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+          {formatSize(value)}
+        </span>
+      )
     }
   ];
 
@@ -453,7 +474,7 @@ const ProductMeasurementComponent: React.FC<ProductMeasurementProps> = ({
                   </h3>
                   <div className="mt-2">
                     <p className="text-sm text-gray-500">
-                      Are you sure you want to delete the measurement for {selectedMeasurement?.product_name} (Size: {selectedMeasurement?.size})? This action cannot be undone.
+                      Are you sure you want to delete the measurement for {selectedMeasurement?.product_name} (Size: {selectedMeasurement?.size ? formatSize(selectedMeasurement.size) : ''})? This action cannot be undone.
                     </p>
                   </div>
                 </div>
@@ -541,10 +562,6 @@ const MeasurementViewWrapper: React.FC<MeasurementViewWrapperProps> = ({
   };
 
   if (!measurement) return null;
-
-  const formatSize = (size: string) => {
-    return size.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-  };
 
   return (
     <div className="p-6">
@@ -919,7 +936,7 @@ const MeasurementForm: React.FC<MeasurementFormProps> = ({
             <option value="">Select Size</option>
             {SIZES.map(size => (
               <option key={size} value={size}>
-                {size.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                {formatSize(size)}
               </option>
             ))}
           </select>

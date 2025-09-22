@@ -650,7 +650,7 @@ const fetchCustomers = async () => {
     setFormData,
     filters,
     handleFilterChange,
-    clearFilters,
+    clearFilters,  
     fetchAppointments,
     fetchCustomers,
     fetchOrders,
