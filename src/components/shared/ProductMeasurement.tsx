@@ -316,10 +316,10 @@ const ProductMeasurementComponent: React.FC<ProductMeasurementProps> = ({
   };
 
   return (
-    <div className="flex-1 py-8 px-12 bg-blue-50/40 rounded-2xl flex flex-col overflow-hidden gap-4">
+    <div className="flex-1 py-8 px-12 bg-blue-50/50 rounded-2xl flex flex-col overflow-hidden gap-4">
       {/* Header */}
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Product Measurement</h1>
+        <h1 className="text-2xl font-bold text-blue-600">Product Measurement</h1>
         {permissions.canCreate && (
           <Button onClick={handleAdd} className="bg-blue-600 hover:bg-blue-700">
             + Add Measurement 

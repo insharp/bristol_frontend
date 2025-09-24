@@ -1,9 +1,15 @@
 // components/layouts/SidebarLayout.tsx
 'use client';
 import Sidebar, { SidebarItem } from "@/components/ui/sidebar";
+import { UserCart } from "iconoir-react";
 import { useRouter } from "next/navigation";
 import React from "react";
-import { FaHome, FaUpload, FaFolderOpen, FaUser, FaCog, FaQuestionCircle, FaSignOutAlt, FaIdBadge } from "react-icons/fa";
+import { FiLogOut } from "react-icons/fi";
+import { HiOutlineClipboardList } from "react-icons/hi";
+import { LuCalendarCheck, LuPencilRuler } from "react-icons/lu";
+import { RiExchangeDollarLine } from "react-icons/ri";
+import { TbShirt } from "react-icons/tb";
+
 
 export default function SidebarLayout() {
   const router = useRouter();
@@ -22,12 +28,13 @@ export default function SidebarLayout() {
   const sidebarItems: SidebarItem[] = [
     //{ icon: <FaHome />, label: "Overview", href: "/admin_dashboard/overview" },
 
-    { icon: <FaUser />, label: "Customers", href: "/admin_dashboard/customer" },
-    { icon: <FaIdBadge />, label: "Measurements", href: "/admin_dashboard/measurement" },
-      { icon: <FaUpload />, label: "Orders", href: "/admin_dashboard/order"},
-    { icon: <FaFolderOpen />, label: "Appointments", href: "/admin_dashboard/appointment" },
-    { icon: <FaQuestionCircle />, label: "Products", href: "/admin_dashboard/product" },
-    { icon: <FaSignOutAlt />, label: "Logout", onClick: handleLogout },
+    { icon: <UserCart width="23px" height="23px"  />, label: "Customers", href: "/admin_dashboard/customer" },
+    { icon: <TbShirt />, label: "Products", href: "/admin_dashboard/product" },
+    { icon: <LuPencilRuler/>, label: "Measurements", href: "/admin_dashboard/measurement" },
+    { icon: <HiOutlineClipboardList />, label: "Orders", href: "/admin_dashboard/order"},
+    { icon: <LuCalendarCheck />, label: "Appointments", href: "/admin_dashboard/appointment" },
+     { icon: <RiExchangeDollarLine />, label: "Cashbook", href: "/admin_dashboard/cashbook" },
+    { icon: <FiLogOut width="20px" height="20px" />, label: "Logout", onClick: handleLogout },
   ];
 
 

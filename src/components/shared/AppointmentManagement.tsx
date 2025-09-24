@@ -391,7 +391,7 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
         const customer = customers.find(c => Number(c.id) === Number(appointment.customer_id));
         const customerName = appointment.customer_name || customer?.name || `Customer ${appointment.customer_id}`;
         const order = orders.find(o => Number(o.id) === Number(appointment.order_id));
-        const orderNumber = appointment.order_number || order?.order_number || `Order ${appointment.order_id}`;
+        const orderNumber = appointment.order_number || order?.order_number || `${appointment.order_id}`;
         
         return (
           customerName.toLowerCase().includes(searchLower) ||
@@ -419,9 +419,9 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
     const customerName = appointment.customer_name || customer?.name || `Customer ${appointment.customer_id}`;
     
     const date = new Date(appointment.appointment_date);
-    const formattedDate = date.toLocaleDateString("en-US", {
-      month: "2-digit",
+    const formattedDate = date.toLocaleDateString("en-GB", {
       day: "2-digit",
+      month: "2-digit",
       year: "numeric",
     });
 
@@ -558,15 +558,15 @@ const columns = [
   },
   {
     key: "appointment_date",
-    label: "Date",
+    label: "Date (dd/mm/yyyy)",
     width: "250px",
     render: (value: string) => {
       const date = new Date(value);
       return (
         <span>
-          {date.toLocaleDateString("en-US", {
-            month: "2-digit",
+          {date.toLocaleDateString("en-GB", {
             day: "2-digit",
+            month: "2-digit",
             year: "numeric",
           })}
         </span>
@@ -776,7 +776,7 @@ const columns = [
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      <main className="flex-1 p-6 bg-gray-50 flex flex-col overflow-hidden">
+      <main className="flex-1 p-6  bg-blue-50/50 rounded-2xl  flex flex-col overflow-hidden">
         {/* Header Section */}
         <div className="flex-shrink-0 mb-6">
           {/* Top Navigation Tabs */}
@@ -785,7 +785,7 @@ const columns = [
               onClick={() => setActiveTab("today")}
               className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                 activeTab === "today"
-                  ? "bg-blue-600 text-white"
+                  ? "bg-blue-500 text-white"
                   : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
               }`}
             >
@@ -795,7 +795,7 @@ const columns = [
               onClick={() => setActiveTab("view")}
               className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                 activeTab === "view"
-                  ? "bg-blue-600 text-white"
+                  ? "bg-blue-500 text-white"
                   : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200"
               }`}
             >
@@ -805,7 +805,7 @@ const columns = [
 
           {/* Main Header */}
           <div className="flex justify-between items-center mb-4">
-            <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+            <h1 className="text-2xl font-bold text-blue-600">{title}</h1>
             {permissions.canCreate && (
               <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700">
                + Add Appointment
@@ -844,16 +844,14 @@ const columns = [
               {/* Date Filter - Only show in View Appointments tab */}
               {activeTab === "view" && (
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Calendar className="h-4 w-4 text-gray-400" />
-                  </div>
-                  <input
-                    type="date"
-                    value={dateFilter}
-                    onChange={(e) => setDateFilter(e.target.value)}
-                    className="pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-48"
-                    placeholder="Filter by date"
-                  />
+                 <input
+                  type="date"
+                  value={formData.appointment_date}
+                  onChange={(e) => setFormData({ ...formData, appointment_date: e.target.value })}
+                  className="w-full px-2 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  
+                  required
+                />
                   {dateFilter && (
                     <button
                       onClick={clearDateFilter}
@@ -885,7 +883,7 @@ const columns = [
         </div>
 
         {/* Table Container */}
-        <div className="flex-1 min-h-0 bg-white rounded-lg border border-gray-200">
+        <div className="flex-1 min-h-0">
           <ReusableTable
             data={filteredAppointments}
             columns={columns}
@@ -972,16 +970,27 @@ const columns = [
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Date *</label>
-                <input
-                  type="date"
-                  value={formData.appointment_date}
-                  onChange={(e) => setFormData({ ...formData, appointment_date: e.target.value })}
-                  className={`w-full px-3 py-2 border rounded-lg ${
-                    formErrors.appointment_date ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                  } focus:outline-none focus:ring-2`}
-                  readOnly={modalMode === "view"}
-                  required
-                />
+                {modalMode === "view" ? (
+                  <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                    {formData.appointment_date ? 
+                      new Date(formData.appointment_date).toLocaleDateString("en-GB", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric"
+                      }) : 'No date selected'
+                    }
+                  </div>
+                ) : (
+                  <input
+                    type="date"
+                    value={formData.appointment_date}
+                    onChange={(e) => setFormData({ ...formData, appointment_date: e.target.value })}
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      formErrors.appointment_date ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                    } focus:outline-none focus:ring-2`}
+                    required
+                  />
+                )}
                 {formErrors.appointment_date && (
                   <p className="mt-1 text-sm text-red-600">{formErrors.appointment_date}</p>
                 )}
@@ -989,16 +998,27 @@ const columns = [
 
               <div>
                 <label className="block text-sm font-medium mb-2">Time *</label>
-                <input
-                  type="time"
-                  value={formData.appointment_time}
-                  onChange={(e) => setFormData({ ...formData, appointment_time: e.target.value })}
-                  className={`w-full px-3 py-2 border rounded-lg ${
-                    formErrors.appointment_time ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                  } focus:outline-none focus:ring-2`}
-                  readOnly={modalMode === "view"}
-                  required
-                />
+                {modalMode === "view" ? (
+                  <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                    {formData.appointment_time ? (() => {
+                      const [hours, minutes] = formData.appointment_time.split(":");
+                      const hour = parseInt(hours);
+                      const ampm = hour >= 12 ? "PM" : "AM";
+                      const displayHour = hour % 12 || 12;
+                      return `${displayHour}:${minutes} ${ampm}`;
+                    })() : 'No time selected'}
+                  </div>
+                ) : (
+                  <input
+                    type="time"
+                    value={formData.appointment_time}
+                    onChange={(e) => setFormData({ ...formData, appointment_time: e.target.value })}
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      formErrors.appointment_time ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                    } focus:outline-none focus:ring-2`}
+                    required
+                  />
+                )}
                 {formErrors.appointment_time && (
                   <p className="mt-1 text-sm text-red-600">{formErrors.appointment_time}</p>
                 )}

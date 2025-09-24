@@ -8,7 +8,7 @@ const SuperAdminCustomersPage = () => {
 
   return (
     <CustomerManagement
-      title="Customers"
+      title="Customer Management"
       permissions={{
         canCreate: true,
         canEdit: true,

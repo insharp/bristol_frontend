@@ -154,7 +154,7 @@ const MessageModal = ({
 };
 
 const SingleOrderManagement: React.FC<SingleOrderManagementProps> = ({
-  title = "Orders",
+  title = "Order Management",
   apiEndpoint,
   permissions = {
     canCreate: true,
@@ -1476,14 +1476,14 @@ const getLoadingState = () => {
 };
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
-      <main className="flex-1 p-6 bg-gray-50 flex flex-col overflow-hidden">
+    <div className="min-h-screen flex flex-col">
+     <main className="flex-1 p-6 bg-blue-50/50 rounded-2xl flex flex-col overflow-hidden">
 
       {/* Header Section */}
       <div className="flex-shrink-0 mb-6">
         {/* Main Header */}
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+          <h1 className="text-2xl font-bold text-blue-600">{title}</h1>
           {permissions.canCreate && (
             <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700 text-white">
               + Add Order
@@ -1548,7 +1548,7 @@ const getLoadingState = () => {
       </div>
 
         {/* Table Container */}
-        <div className="flex-1 min-h-0 bg-white rounded-lg border border-gray-200">
+        <div className="flex-1 min-h-0">
           <ReusableTable
             data={filteredOrders}
             columns={getTableColumns()}
