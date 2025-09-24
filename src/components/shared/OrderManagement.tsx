@@ -1503,7 +1503,7 @@ const getLoadingState = () => {
                   : "text-gray-600 hover:text-gray-900"
               }`}
             >
-              Single
+              Individual
             </button>
             <button
               onClick={() => setActiveTab("bulk")}
@@ -1513,7 +1513,7 @@ const getLoadingState = () => {
                   : "text-gray-600 hover:text-gray-900"
               }`}
             >
-              Bulk
+              Corporate
             </button>
             <button
               onClick={() => setActiveTab("default")}
@@ -1590,25 +1590,44 @@ const getLoadingState = () => {
                   )}
                 </div>
                 {/* Order Type */}
-                <div>
-                  <label className="block text-sm font-medium mb-2">Order Type *</label>
-                  <select
-                    value={formData.orderType}
-                    onChange={(e) => handleInputChange('orderType', e.target.value)}
-                    className={`w-full px-3 py-2 border rounded-lg ${
-                      formErrors.orderType ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                    } focus:outline-none focus:ring-2`}
-                    disabled={modalMode === "view"}
-                    required
-                  >
-                    <option value="">Select Order Type</option>
-                    <option value="single">Single</option>
-                    <option value="bulk">Bulk</option>
-                  </select>
-                  {formErrors.orderType && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.orderType}</p>
-                  )}
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Order Type *</label>
+                    <select
+                      value={formData.orderType}
+                      onChange={(e) => {
+                        const newOrderType = e.target.value;
+                        handleInputChange('orderType', newOrderType);
+                        
+                        // If bulk is selected, switch to bulk tab and close modal
+                        if (newOrderType === 'bulk') {
+                          // Close current modal
+                          setIsModalOpen(false);
+                          
+                          // Switch to bulk tab
+                          setTimeout(() => {
+                            setActiveTab('bulk');
+                            // Open the bulk form modal after a short delay
+                            setTimeout(() => {
+                              openCreateModal();
+                            }, 100);
+                          }, 100);
+                        }
+                      }}
+                      className={`w-full px-3 py-2 border rounded-lg ${
+                        formErrors.orderType ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                      } focus:outline-none focus:ring-2`}
+                      disabled={modalMode === "view"}
+                      required
+                    >
+                      <option value="">Select Order Type</option>
+                      <option value="single">Individual</option>
+                      <option value="bulk">Corporate</option>
+                      
+                    </select>
+                    {formErrors.orderType && (
+                      <p className="mt-1 text-sm text-red-600">{formErrors.orderType}</p>
+                    )}
+                  </div>
 
                 {/* Product Category */}
                 {/* Product Type Selection - SINGLE ORDER ONLY */}
@@ -1955,12 +1974,32 @@ const getLoadingState = () => {
               </>
             )}
           </div>
+         
+
             {/* Order Type */}
             <div>
               <label className="block text-sm font-medium mb-2">Order Type *</label>
               <select
                 value={bulkCustomFormData.orderType}
-                onChange={(e) => handleBulkCustomInputChange('orderType', e.target.value)}
+                onChange={(e) => {
+                  const newOrderType = e.target.value;
+                  handleBulkCustomInputChange('orderType', newOrderType);
+                  
+                  // If single is selected, switch to single tab and close modal
+                  if (newOrderType === 'single') {
+                    // Close current modal
+                    setIsModalOpen(false);
+                    
+                    // Switch to single tab
+                    setTimeout(() => {
+                      setActiveTab('single');
+                      // Open the single form modal after a short delay
+                      setTimeout(() => {
+                        openCreateModal();
+                      }, 100);
+                    }, 100);
+                  }
+                }}
                 className={`w-full px-3 py-2 border rounded-lg ${
                   formErrors.orderType ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                 } focus:outline-none focus:ring-2`}
@@ -1968,8 +2007,9 @@ const getLoadingState = () => {
                 required
               >
                 <option value="">Select Order Type</option>
-                <option value="bulk">Bulk</option>
-                <option value="custom">Custom</option>
+                <option value="bulk">Corporate</option>
+                <option value="single">Individual</option>
+
               </select>
               {formErrors.orderType && (
                 <p className="mt-1 text-sm text-red-600">{formErrors.orderType}</p>
