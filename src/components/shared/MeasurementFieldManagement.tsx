@@ -613,11 +613,11 @@ const getActions = () => {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      <main className="flex-1 p-8 bg-blue-50/40 rounded-2xl flex flex-col overflow-hidden">
+      <main className="flex-1 p-8 bg-blue-50/50 rounded-2xl flex flex-col overflow-hidden">
         {/* Fixed Header Section */}
         <div className="flex-shrink-0 mb-6">
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+            <h1 className="text-2xl font-bold text-blue-600">{title}</h1>
             {permissions.canCreate && (
               <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700">
                 + Add Measurement Field

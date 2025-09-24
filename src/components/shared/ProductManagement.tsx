@@ -705,11 +705,11 @@ const ProductManagement: React.FC<ProductManagementProps> = ({
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      <main className="flex-1 p-8 bg-blue-50/40 rounded-2xl flex flex-col overflow-hidden">
+     <main className="flex-1 p-8 bg-blue-50/50 rounded-2xl flex flex-col overflow-hidden">
         {/* Fixed Header Section */}
         <div className="flex-shrink-0 mb-6">
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+            <h1 className="text-2xl font-bold text-blue-600">{title}</h1>
             {permissions.canCreate && (
               <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700">
                 + Add Product
@@ -887,7 +887,7 @@ const ProductManagement: React.FC<ProductManagementProps> = ({
                   formErrors.style_option ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                 } focus:outline-none focus:ring-2`}
                 required
-                placeholder="e.g., Color: Blue, Material: Cotton"
+                placeholder="Enter style option"
               />
               {formErrors.style_option && (
                 <p className="mt-1 text-sm text-red-600">{formErrors.style_option}</p>

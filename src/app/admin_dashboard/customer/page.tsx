@@ -5,7 +5,7 @@ import CustomerManagement from "@/components/shared/CustomerManagement";
 const AdminCustomersPage = () => {
   return (
     <CustomerManagement
-      title="Admin - Customer Management"
+      title="Customer Management"
       permissions={{
         canCreate: true,
         canEdit: true,

@@ -302,10 +302,10 @@ const getFilteredData = () => {
   };
 
   return (
-    <div className="space-y-6 bg-blue-50/50 p-10">
+    <div className="space-y-6 bg-blue-50/50 rounded-2xl p-10">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">Customer Measurement</h1>
+        <h1 className="text-2xl font-bold text-blue-600">Customer Measurement</h1>
         {add && (
           <Button onClick={handleAdd}>
             + Add Measurement

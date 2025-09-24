@@ -3,7 +3,11 @@
 import Sidebar, { SidebarItem } from "@/components/ui/sidebar";
 import { useRouter } from "next/navigation";
 import React from "react";
-import { FaHome, FaUpload, FaFolderOpen, FaUser, FaCog, FaQuestionCircle, FaSignOutAlt, FaIdBadge } from "react-icons/fa";
+import { HiOutlineClipboardList } from "react-icons/hi";
+import { LuCalendarCheck, LuPencilRuler } from "react-icons/lu";
+import { TbShirt, TbUsers } from "react-icons/tb";
+import {  UserCart} from "iconoir-react";
+import { FiLogOut } from "react-icons/fi";
 
 export default function SidebarLayout() {
   const router = useRouter();
@@ -22,14 +26,14 @@ export default function SidebarLayout() {
 
 
     const sidebarItems: SidebarItem[] = [
-    { icon: <FaUser />, label: "Customers", href: "/super_admin_dashboard/customer" },
-    { icon: <FaIdBadge />, label: "Measurements", href: "/super_admin_dashboard/measurement" },
-    { icon: <FaUpload />, label: "Orders", href: "/super_admin_dashboard/order" },
-    { icon: <FaUpload />, label: "Appointments", href: "/super_admin_dashboard/appointment" },
-    { icon: <FaUpload />, label: "Products", href: "/super_admin_dashboard/product" },
+    { icon: <UserCart width="23px" height="23px" />, label: "Customers", href: "/super_admin_dashboard/customer" },
+    { icon:<TbShirt />, label: "Products", href: "/super_admin_dashboard/product" },
+    { icon: <LuPencilRuler />, label: "Measurements", href: "/super_admin_dashboard/measurement" },
+    { icon: <HiOutlineClipboardList />, label: "Orders", href: "/super_admin_dashboard/order" },
+    { icon: <LuCalendarCheck />, label: "Appointments", href: "/super_admin_dashboard/appointment" },
     //{ icon: <FaHome />, label: "Overview", href: "/super_admin_dashboard/overview" },
-    { icon: <FaIdBadge />, label: "User", href: "/super_admin_dashboard/users" },
-    { icon: <FaSignOutAlt />, label: "Logout", onClick: handleLogout },
+    { icon: <TbUsers />, label: "User", href: "/super_admin_dashboard/users" },
+    { icon: <FiLogOut width="20px" height="20px"  />, label: "Logout", onClick: handleLogout },
   ];
 
 

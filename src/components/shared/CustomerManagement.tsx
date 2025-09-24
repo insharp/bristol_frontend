@@ -383,7 +383,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
     return customers.filter(customer => customer.customer_type === type).length;
   };
 
-  // FIXED: Dynamic table columns - Show delivery address for ALL customer types
+  //  Dynamic table columns - Show delivery address for ALL customer types
   const getColumns = () => {
     const baseColumns: Array<{
       key: string;
@@ -621,7 +621,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
     }
   };
 
-  // FIXED: Handle customer type change in form - Don't clear delivery_address for individual customers
+  //  Handle customer type change in form - Don't clear delivery_address for individual customers
   const handleCustomerTypeChange = (type: "individual" | "corporate") => {
     setFormData({
       ...formData,
