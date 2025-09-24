@@ -531,7 +531,7 @@ const columns = [
     width: "170px",
     render: (value: any) => {
       const order = orders.find(o => Number(o.id) === Number(value));
-      const orderNumber = order?.order_number || `Order ${value}`;
+      const orderNumber = order?.order_number || `${value}`;
       return <span className="font-medium">{orderNumber}</span>;
     }
   },
@@ -842,27 +842,26 @@ const columns = [
             {/* Right side - Search Bar and Date Filter (only in view tab) */}
             <div className="flex items-center space-x-4">
               {/* Date Filter - Only show in View Appointments tab */}
-              {activeTab === "view" && (
-                <div className="relative">
-                 <input
-                  type="date"
-                  value={formData.appointment_date}
-                  onChange={(e) => setFormData({ ...formData, appointment_date: e.target.value })}
-                  className="w-full px-2 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  
-                  required
-                />
-                  {dateFilter && (
-                    <button
-                      onClick={clearDateFilter}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center hover:text-gray-700"
-                    >
-                      <X className="h-4 w-4 text-gray-400" />
-                    </button>
-                  )}
-                </div>
-              )}
-
+             {activeTab === "view" && (
+              <div className="relative">
+              <input
+                type="date"
+                value={dateFilter}  
+                onChange={(e) => setDateFilter(e.target.value)} 
+                className="w-full px-2 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                
+                required
+              />
+                {dateFilter && (
+                  <button
+                    onClick={clearDateFilter}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center hover:text-gray-700"
+                  >
+                    <X className="h-4 w-4 text-gray-400" />
+                  </button>
+                )}
+              </div>
+)}
               {/* Search Bar */}
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
