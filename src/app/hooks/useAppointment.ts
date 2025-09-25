@@ -30,7 +30,6 @@ export interface Filters {
   sort_order?: "asc" | "desc";
 }
 
-// Updated FormData interface with status property
 export interface FormData {
   customer_id: string;
   order_id: string;
@@ -47,22 +46,40 @@ export interface ReminderStats {
   upcoming_reminders: number;
 }
 
-// Define Order interface for type safety
-export interface Order {
+// Enhanced Customer interface
+export interface Customer {
   id: number;
+  customer_name?: string;
+  company_name?: string;
+  contact_person?: string;
+  customer_type: "individual" | "corporate";
+  phone_number?: string;
+  email?: string;
+  delivery_address?: string;
+  special_notes?: string;
+  batch_name?: string;
+  display_name?: string; // For dropdown display
+}
+
+// Enhanced Order interface to handle unique IDs and avoid conflicts
+export interface Order {
+  id: number | string; // Now accepts both number and string for unique IDs
   order_number: string;
-  customer_id?: number;
+  customer_id: number;
+  bulk_id?: string;
+  order_type?: string;
+  status?: string;
+  original_id?: number; // Store order_id (main orders table reference) for backend operations
 }
 
 export const useAppointments = (apiEndpoint?: string) => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [customers, setCustomers] = useState<{ id: number; name: string }[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [allOrders, setAllOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Updated formData initialization with status
   const [formData, setFormData] = useState<FormData>({
     customer_id: "",
     order_id: "",
@@ -84,6 +101,7 @@ export const useAppointments = (apiEndpoint?: string) => {
     sort_by: "appointment_date",
     sort_order: "asc",
   });
+
   const [reminderStats, setReminderStats] = useState<ReminderStats>({
     sent_today: 0,
     success_rate: 100,
@@ -95,194 +113,320 @@ export const useAppointments = (apiEndpoint?: string) => {
   const ordersBaseUrl = `http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}`;
   const today = new Date().toISOString().split("T")[0];
 
-  // Fetch customers from database
-const fetchCustomers = async () => {
-  try {
-    console.log('Fetching customers from:', `${customerBaseUrl}/customer`);
-    const res = await fetch(`${customerBaseUrl}/customer`, { 
-      credentials: "include" 
-    });
-    
-    if (res.ok) {
-      const data = await res.json();
-      console.log('Customers API response:', data);
-      const customerData = data.data || data;
-      
-      // Transform customer data with better null handling
-      const transformedCustomers = customerData.map((customer: any) => {
-        console.log(`Processing customer ${customer.id}:`, {
-          customer_type: customer.customer_type,
-          customer_name: customer.customer_name,
-          first_name: customer.first_name,
-          company_name: customer.company_name,
-          contact_person: customer.contact_person
-        });
-        
-        let displayName;
-        
-        // Check if it's an individual customer (normal/individual type)
-        if (customer.customer_type === 'normal' || customer.customer_type === 'individual' || customer.customer_type === 'personal') {
-          // For individual customers, try multiple possible field names
-          displayName = customer.customer_name || 
-                       customer.first_name || 
-                       customer.name || 
-                       customer.full_name;
-          
-          // If no valid name found, use fallback
-          if (!displayName || displayName === 'null' || displayName.toString().trim() === '') {
-            displayName = `Individual Customer #${customer.id}`;
-          }
-        } else if (customer.customer_type === 'corporate' || customer.customer_type === 'company' || customer.customer_type === 'business') {
-          // For corporate customers
-          const companyName = customer.company_name || 'Unknown Company';
-          const contactPerson = customer.contact_person || 'Unknown Contact';
-          displayName = `${companyName} (${contactPerson})`;
-        } else {
-          // Unknown customer type - check which fields have data
-          if (customer.company_name || customer.contact_person) {
-            // Looks like corporate
-            const companyName = customer.company_name || 'Unknown Company';
-            const contactPerson = customer.contact_person || 'Unknown Contact';
-            displayName = `${companyName} (${contactPerson})`;
-          } else {
-            // Treat as individual
-            displayName = customer.customer_name || 
-                         customer.first_name || 
-                         customer.name || 
-                         customer.full_name ||
-                         `Customer #${customer.id}`;
-          }
-        }
-        
-        // Final cleanup
-        if (!displayName || displayName === 'null' || displayName.toString().trim() === '') {
-          displayName = `Customer #${customer.id}`;
-        }
-        
-        return {
-          id: parseInt(customer.id),
-          name: displayName.toString().trim()
-        };
-      });
-      
-      console.log('Transformed customers:', transformedCustomers);
-      setCustomers(transformedCustomers);
-      return { success: true, data: transformedCustomers };
-    } else {
-      console.error("Failed to fetch customers, status:", res.status);
-      setCustomers([]);
-      return { success: false, error: "Failed to fetch customers" };
-    }
-  } catch (err) {
-    console.error("Error fetching customers:", err);
-    setCustomers([]);
-    return { success: false, error: "Connection error while fetching customers" };
-  }
-};
-
-  // Updated fetchOrders to store all orders and optionally filter by customer
-  const fetchOrders = async (customerId?: number) => {
+  // Fetch batch information from corporate bulk measurements
+  const fetchBatchInformation = async (): Promise<Record<number, string>> => {
     try {
-      const url = `${ordersBaseUrl}/orders/all`;
-      console.log('Fetching orders from:', url);
-      console.log('Customer ID filter:', customerId);
-      
-      const res = await fetch(url, { 
+      const possibleEndpoints = [
+        `${customerBaseUrl}/corporate-measurement/corporate/all`,
+        `${customerBaseUrl}/corporate-bulk-measurements/all`,
+        `${customerBaseUrl}/measurements/corporate-bulk/all`,
+      ];
+
+      for (const endpoint of possibleEndpoints) {
+        try {
+          console.log('Trying measurements endpoint:', endpoint);
+          const res = await fetch(endpoint, {
+            credentials: "include"
+          });
+          
+          if (res.ok) {
+            const data = await res.json();
+            console.log('Batch measurements response:', data);
+            const measurements = data.data || data || [];
+            
+            // Create mapping of corporate_customer_id to batch_name
+            const batchMapping: Record<number, string> = {};
+            measurements.forEach((measurement: any) => {
+              if (measurement.corporate_customer_id && measurement.batch_name) {
+                batchMapping[measurement.corporate_customer_id] = measurement.batch_name;
+              }
+            });
+            
+            return batchMapping;
+          }
+        } catch (err) {
+          console.log(`Endpoint ${endpoint} failed:`, err);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching batch information:', err);
+    }
+    
+    return {};
+  };
+
+  // Enhanced fetchCustomers with proper display formatting
+  const fetchCustomers = async () => {
+    try {
+      console.log('Fetching customers from:', `${customerBaseUrl}/customer`);
+      const res = await fetch(`${customerBaseUrl}/customer`, { 
         credentials: "include" 
       });
       
-      console.log('Orders API response status:', res.status);
-      console.log('Orders API response ok:', res.ok);
-      
       if (res.ok) {
         const data = await res.json();
-        console.log('Orders API raw response:', data);
+        const customerData = data.data || data;
         
-        // Handle different possible response structures
-        let orderData;
-        if (Array.isArray(data)) {
-          orderData = data;
-        } else if (data.data && Array.isArray(data.data)) {
-          orderData = data.data;
-        } else if (data.orders && Array.isArray(data.orders)) {
-          orderData = data.orders;
-        } else {
-          console.error('Unexpected orders data structure:', data);
-          orderData = [];
-        }
+        // Fetch batch information
+        const batchInfo = await fetchBatchInformation();
         
-        console.log('Orders data to transform:', orderData);
+        // Transform customer data with proper display names
+        const transformedCustomers: Customer[] = customerData.map((customer: any) => {
+          const customerId = parseInt(customer.id);
+          const customerType = customer.customer_type;
+          const batchName = batchInfo[customerId];
+          
+          let displayName: string;
+          
+          if (customerType === 'corporate') {
+            const companyName = customer.company_name || 'Unknown Company';
+            // Format: customer_id-company_name(batch_name)
+            displayName = batchName 
+              ? `${customerId}-${companyName}(${batchName})`
+              : `${customerId}-${companyName}`;
+          } else {
+            // Individual customers: customer_id-customer_name
+            const customerName = customer.customer_name || `Customer ${customerId}`;
+            displayName = `${customerId}-${customerName}`;
+          }
+          
+          return {
+            id: customerId,
+            customer_name: customer.customer_name,
+            company_name: customer.company_name,
+            contact_person: customer.contact_person,
+            customer_type: customerType,
+            phone_number: customer.phone_number,
+            email: customer.email,
+            delivery_address: customer.delivery_address,
+            special_notes: customer.special_notes,
+            batch_name: batchName,
+            display_name: displayName
+          };
+        });
         
-        // Transform order data with better error handling and include customer_id
-        const transformedOrders: Order[] = orderData
-          .filter((order: any) => order && (order.id || order.order_id)) // Filter out invalid orders
-          .map((order: any): Order => {
-            const id = order.id || order.order_id;
-            const orderNumber = order.order_number || order.orderNumber || order.number || `${id}`;
-            const orderCustomerId = order.customer_id || order.customerId;
-            
-            return {
-              id: parseInt(String(id)),
-              order_number: String(orderNumber),
-              customer_id: orderCustomerId ? parseInt(String(orderCustomerId)) : undefined
-            };
-          })
-          .filter((order: Order) => !isNaN(order.id)); // Remove any with invalid IDs
-        
-        console.log('Transformed orders:', transformedOrders);
-        
-        // Store all orders for reference
-        setAllOrders(transformedOrders);
-        
-        // Filter orders by customer if customerId is provided
-        let filteredOrders = transformedOrders;
-        if (customerId) {
-          filteredOrders = transformedOrders.filter((order: Order) => 
-            order.customer_id === parseInt(String(customerId))
-          );
-          console.log(`Filtered orders for customer ${customerId}:`, filteredOrders);
-        }
-        
-        setOrders(filteredOrders);
-        console.log('Number of orders loaded:', filteredOrders.length);
-        
-        return { success: true, data: filteredOrders };
+        console.log('Transformed customers:', transformedCustomers);
+        setCustomers(transformedCustomers);
+        return { success: true, data: transformedCustomers };
       } else {
-        const errorText = await res.text();
-        console.error("Failed to fetch orders, status:", res.status, "response:", errorText);
-        setOrders([]);
-        return { success: false, error: `Failed to fetch orders: ${res.status} ${errorText}` };
+        console.error("Failed to fetch customers, status:", res.status);
+        setCustomers([]);
+        return { success: false, error: "Failed to fetch customers" };
       }
     } catch (err) {
-      console.error("Error fetching orders:", err);
-      setOrders([]);
-      return { success: false, error: `Connection error while fetching orders: ${err}` };
+      console.error("Error fetching customers:", err);
+      setCustomers([]);
+      return { success: false, error: "Connection error while fetching customers" };
     }
   };
 
-  // New function to filter orders based on selected customer
+  // Enhanced fetchOrders - fetch from child tables using order_id for backend reference
+  const fetchOrders = async () => {
+    try {
+      console.log('=== FETCHING ORDERS FROM CHILD TABLES ===');
+      
+      let allOrdersData: Order[] = [];
+      
+      // Define the different order endpoints with their specific table mappings
+      const orderSources = [
+        {
+          url: `${ordersBaseUrl}/orders/single`,
+          type: 'single',
+          tableName: 'single_orders',
+          prefix: 'S' // Single orders get S- prefix
+        },
+        {
+          url: `${ordersBaseUrl}/orders/bulk-custom`, 
+          type: 'bulk-custom',
+          tableName: 'bulk_order_custom',
+          prefix: 'BC' // Bulk custom orders get BC- prefix
+        },
+        {
+          url: `${ordersBaseUrl}/orders/bulk-default`,
+          type: 'bulk-default', 
+          tableName: 'bulk_order_default',
+          prefix: 'BD' // Bulk default orders get BD- prefix
+        }
+      ];
+
+      // First, get corporate bulk measurement mapping for bulk custom orders
+      let bulkToCustomerMap: Record<string, number> = {};
+      try {
+        const corporateRes = await fetch(`${customerBaseUrl}/corporate-measurement/corporate/all`, {
+          credentials: "include"
+        });
+        
+        if (corporateRes.ok) {
+          const corporateData = await corporateRes.json();
+          const measurements = corporateData.data || corporateData || [];
+          measurements.forEach((measurement: any) => {
+            if (measurement.id && measurement.corporate_customer_id) {
+              bulkToCustomerMap[String(measurement.id)] = measurement.corporate_customer_id;
+            }
+          });
+          console.log('Corporate bulk ID to customer mapping:', bulkToCustomerMap);
+        }
+      } catch (error) {
+        console.log('Failed to fetch corporate bulk measurements:', error);
+      }
+
+      // Fetch from each child table separately
+      for (const source of orderSources) {
+        try {
+          console.log(`\nFetching from ${source.tableName} (${source.type})...`);
+          console.log(`URL: ${source.url}`);
+          
+          const res = await fetch(source.url, { credentials: "include" });
+          
+          if (res.ok) {
+            const data = await res.json();
+            console.log(`${source.type} orders response:`, data);
+            
+            const orderData = Array.isArray(data) ? data : data.data || data.orders || [];
+            console.log(`Found ${orderData.length} ${source.type} orders`);
+            
+            if (orderData.length > 0) {
+              console.log(`Sample ${source.type} order:`, orderData[0]);
+              
+              const transformedOrders: Order[] = orderData
+                .filter((order: any) => {
+                  const hasId = order.id;
+                  if (!hasId) {
+                    console.log(`Skipping ${source.type} order without ID:`, order);
+                    return false;
+                  }
+                  return true;
+                })
+                .map((order: any): Order => {
+                  // Create unique ID using prefix to avoid conflicts
+                  // Use order_id (main table reference) instead of child table id
+                  const uniqueId = `${source.prefix}-${order.order_id}`;
+                  let customerId: number = 0;
+                  let orderNumber: string = `Order-${order.order_id}`; // Use order_id for display
+                  let bulkId: string | undefined;
+                  
+                  console.log(`Processing ${source.type} order: child_id=${order.id}, order_id=${order.order_id} -> ${uniqueId}`);
+                  
+                  if (source.type === 'single') {
+                    // From single_orders table: has customerid field
+                    customerId = order.customerid || 0;
+                    orderNumber = `Single-${order.order_id}`;
+                    console.log(`  Single order - customerid: ${order.customerid} -> ${customerId}`);
+                    
+                  } else if (source.type === 'bulk-custom') {
+                    // From bulk_order_custom table: resolve customer from Bulkid
+                    const bulkIdValue = order.Bulkid;
+                    customerId = bulkToCustomerMap[String(bulkIdValue)] || 0;
+                    bulkId = bulkIdValue ? String(bulkIdValue) : undefined;
+                    orderNumber = `Bulk-Custom-${order.order_id}`;
+                    console.log(`  Bulk custom - Bulkid: ${bulkIdValue} -> customer: ${customerId}`);
+                    
+                  } else if (source.type === 'bulk-default') {
+                    // From bulk_order_default table: has CustomerID field
+                    customerId = order.CustomerID || 0;
+                    orderNumber = `Bulk-Default-${order.order_id}`;
+                    console.log(`  Bulk default - CustomerID: ${order.CustomerID} -> ${customerId}`);
+                  }
+                  
+                  const transformedOrder: Order = {
+                    id: uniqueId, // Keep as string for unique identification (e.g. "S-15", "BC-23")
+                    order_number: orderNumber,
+                    customer_id: customerId,
+                    bulk_id: bulkId,
+                    order_type: source.type,
+                    status: order.status,
+                    // Store order_id (references main orders table) for backend operations
+                    original_id: order.order_id // This matches what appointments table references
+                  };
+                  
+                  console.log(`  Transformed:`, transformedOrder);
+                  return transformedOrder;
+                })
+                .filter((order: Order) => {
+                  const isValid = order.customer_id > 0 && order.original_id;
+                  if (!isValid) {
+                    console.log(`Filtering out order ${order.id} (customer_id: ${order.customer_id}, original_id: ${order.original_id})`);
+                  }
+                  return isValid;
+                });
+              
+              console.log(`Added ${transformedOrders.length} valid ${source.type} orders`);
+              allOrdersData = [...allOrdersData, ...transformedOrders];
+            }
+            
+          } else {
+            console.log(`${source.type} endpoint failed: ${res.status} ${res.statusText}`);
+            if (res.status === 401) {
+              console.log(`Authentication required for ${source.url}`);
+            }
+          }
+          
+        } catch (error) {
+          console.log(`${source.type} endpoint error:`, error);
+        }
+      }
+      
+      console.log(`\nSUMMARY:`);
+      console.log(`Total valid orders: ${allOrdersData.length}`);
+      console.log(`Order breakdown:`, {
+        single: allOrdersData.filter(o => o.order_type === 'single').length,
+        'bulk-custom': allOrdersData.filter(o => o.order_type === 'bulk-custom').length,
+        'bulk-default': allOrdersData.filter(o => o.order_type === 'bulk-default').length
+      });
+      
+      if (allOrdersData.length > 0) {
+        console.log(`Sample orders:`, allOrdersData.slice(0, 3));
+      }
+      
+      setAllOrders(allOrdersData);
+      setOrders(allOrdersData);
+      
+      return { success: true, data: allOrdersData };
+      
+    } catch (err) {
+      console.error("Fatal error fetching orders:", err);
+      setOrders([]);
+      setAllOrders([]);
+      return { success: false, error: `Connection error: ${err}` };
+    }
+  };
+
+  // Filter orders by selected customer - handle both string and number IDs
   const filterOrdersByCustomer = (customerId: string) => {
     console.log('Filtering orders by customer:', customerId);
-    console.log('All orders available:', allOrders);
     
     if (!customerId) {
-      // If no customer selected, show all orders
+      console.log('No customer selected, showing all orders');
       setOrders(allOrders);
       return;
     }
     
     const customerIdNum = parseInt(customerId);
-    const filteredOrders = allOrders.filter((order: Order) => 
-      order.customer_id === customerIdNum
-    );
+    const selectedCustomer = customers.find(c => c.id === customerIdNum);
     
-    console.log(`Orders filtered for customer ${customerIdNum}:`, filteredOrders);
+    if (!selectedCustomer) {
+      console.log('Customer not found, clearing orders');
+      setOrders([]);
+      return;
+    }
+    
+    // Filter orders that belong to the selected customer
+    const filteredOrders = allOrders.filter((order: Order) => {
+      // Direct customer match
+      const directMatch = order.customer_id === customerIdNum;
+      
+      console.log(`Order ${order.id}: customer_id=${order.customer_id}, selected=${customerIdNum}, match=${directMatch}`);
+      
+      return directMatch;
+    });
+    
+    console.log(`Found ${filteredOrders.length} orders for customer ${customerIdNum}`);
     setOrders(filteredOrders);
     
-    // Clear the selected order if it doesn't belong to the new customer
+    // Clear selected order if it doesn't belong to the customer
     if (formData.order_id) {
       const selectedOrderBelongsToCustomer = filteredOrders.some((order: Order) => 
-        order.id === parseInt(formData.order_id)
+        String(order.id) === String(formData.order_id)
       );
       
       if (!selectedOrderBelongsToCustomer) {
@@ -291,7 +435,7 @@ const fetchCustomers = async () => {
       }
     }
   };
-  
+
   const fetchAppointments = async () => {
     setLoading(true);
     setError(null);
@@ -316,7 +460,6 @@ const fetchCustomers = async () => {
   };
 
   const createAppointment = async () => {
-    // Validate required fields
     if (
       !formData.customer_id ||
       !formData.order_id ||
@@ -327,9 +470,15 @@ const fetchCustomers = async () => {
       return { success: false, error: "Please fill all required fields" };
     }
 
-    // Validate that customer_id and order_id are valid numbers
     const customerId = parseInt(formData.customer_id);
-    const orderId = parseInt(formData.order_id);
+    
+    // Find the order to get its original_id (order_id) for the backend
+    const selectedOrder = allOrders.find(o => String(o.id) === String(formData.order_id));
+    if (!selectedOrder || !selectedOrder.original_id) {
+      return { success: false, error: "Invalid order selection - order ID not found" };
+    }
+    
+    const orderId = selectedOrder.original_id; // Use order_id for backend
     
     if (isNaN(customerId) || isNaN(orderId)) {
       return { success: false, error: "Invalid customer or order selection" };
@@ -337,14 +486,13 @@ const fetchCustomers = async () => {
 
     setLoading(true);
     try {
-      // Create payload matching your backend API structure
       const payload = {
         customer_id: customerId,  
-        order_id: orderId,
+        order_id: orderId, // Use order_id (main table reference)
         appointment_type: formData.appointment_type,
         appointment_date: formData.appointment_date,
         appointment_time: formData.appointment_time,
-        status: "scheduled", // Set default status
+        status: "scheduled",
         notes: formData.notes || null,
       };
 
@@ -359,14 +507,11 @@ const fetchCustomers = async () => {
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
-        console.error('Create appointment failed:', errorData);
         return { success: false, error: errorData.message || `Failed to create appointment (HTTP ${res.status})` };
       }
 
       const createdAppointment = await res.json();
-      console.log('Successfully created appointment:', createdAppointment);
-
-      // Updated reset form data with status
+      
       setFormData({
         customer_id: "",
         order_id: "",
@@ -377,14 +522,10 @@ const fetchCustomers = async () => {
         status: undefined,
       });
 
-      // Reset orders to show all orders when form is cleared
       setOrders(allOrders);
-
-      // Refresh appointments list
       await fetchAppointments();
       return { success: true, data: createdAppointment, message: "Appointment scheduled successfully!" };
     } catch (err) {
-      console.error('Create appointment error:', err);
       const errorMessage = err instanceof Error ? err.message : "Failed to create appointment";
       setError(errorMessage);
       return { success: false, error: errorMessage };
@@ -393,85 +534,43 @@ const fetchCustomers = async () => {
     }
   };
 
-  // FIXED: Simplified and more reliable updateAppointment function
   const updateAppointment = async (appointmentId: number, updateData?: Partial<FormData>) => {
-    console.log('=== UPDATE APPOINTMENT HOOK DEBUG ===');
-    console.log('Starting updateAppointment function');
-    console.log('Appointment ID:', appointmentId);
-    console.log('Update data received:', updateData);
-    console.log('Current form data:', formData);
-
     setLoading(true);
     
     try {
       const dataToUse = updateData || formData;
-      console.log('Data to use for update:', dataToUse);
-
-      // Find the existing appointment
       const existingAppointment = appointments.find(a => a.id === appointmentId);
-      console.log('Found existing appointment:', existingAppointment);
       
       if (!existingAppointment) {
-        console.error('Appointment not found for ID:', appointmentId);
-        console.log('Available appointments:', appointments.map(a => ({ id: a.id, customer_id: a.customer_id })));
         return { success: false, error: "Appointment not found" };
       }
 
-      // Build the payload with only the fields that should be updated
       const payload: any = {};
       
-      // Always include the main appointment fields if they exist
-      if (dataToUse.appointment_type) {
-        payload.appointment_type = dataToUse.appointment_type;
-      }
+      if (dataToUse.appointment_type) payload.appointment_type = dataToUse.appointment_type;
+      if (dataToUse.appointment_date) payload.appointment_date = dataToUse.appointment_date;
+      if (dataToUse.appointment_time) payload.appointment_time = dataToUse.appointment_time;
       
-      if (dataToUse.appointment_date) {
-        payload.appointment_date = dataToUse.appointment_date;
-      }
-      
-      if (dataToUse.appointment_time) {
-        payload.appointment_time = dataToUse.appointment_time;
-      }
-      
-      // Handle order_id conversion
       if (dataToUse.order_id) {
-        const orderId = parseInt(dataToUse.order_id);
-        if (!isNaN(orderId)) {
-          payload.order_id = orderId;
+        // Find the order to get its original_id (order_id) for the backend
+        const selectedOrder = allOrders.find(o => String(o.id) === String(dataToUse.order_id));
+        if (selectedOrder && selectedOrder.original_id && !isNaN(selectedOrder.original_id)) {
+          payload.order_id = selectedOrder.original_id;
         }
       }
       
-      // Handle customer_id conversion (if needed for updates)
       if (dataToUse.customer_id) {
         const customerId = parseInt(dataToUse.customer_id);
-        if (!isNaN(customerId)) {
-          payload.customer_id = customerId;
-        }
+        if (!isNaN(customerId)) payload.customer_id = customerId;
       }
-      
-      // Handle notes (allow empty string to clear notes)
-      if (dataToUse.notes !== undefined) {
-        payload.notes = dataToUse.notes || null;
-      }
-      
-      // Handle status if provided
-      if (dataToUse.status) {
-        payload.status = dataToUse.status;
-      }
+      if (dataToUse.notes !== undefined) payload.notes = dataToUse.notes || null;
+      if (dataToUse.status) payload.status = dataToUse.status;
 
-      console.log('Final payload:', payload);
-      
-      // Validate that we have something to update
       if (Object.keys(payload).length === 0) {
-        console.error('No valid fields to update');
         return { success: false, error: "No valid fields to update" };
       }
 
-      const url = `${baseUrl}/${appointmentId}`;
-      console.log('Making PUT request to:', url);
-      console.log('With payload:', JSON.stringify(payload, null, 2));
-
-      const response = await fetch(url, {
+      const response = await fetch(`${baseUrl}/${appointmentId}`, {
         method: "PUT",
         headers: { 
           "Content-Type": "application/json",
@@ -481,43 +580,14 @@ const fetchCustomers = async () => {
         body: JSON.stringify(payload),
       });
 
-      console.log('Response status:', response.status);
-      console.log('Response ok:', response.ok);
-
-      // Handle response
-      let responseData;
-      const responseText = await response.text();
-      console.log('Response text:', responseText);
-
-      try {
-        responseData = responseText ? JSON.parse(responseText) : {};
-      } catch (parseError) {
-        console.error('Failed to parse response JSON:', parseError);
-        responseData = { message: responseText };
-      }
-
       if (!response.ok) {
-        console.error('Update failed with status:', response.status);
-        console.error('Error response:', responseData);
-        return { 
-          success: false, 
-          error: responseData.detail || responseData.message || `HTTP ${response.status}` 
-        };
+        const responseData = await response.json().catch(() => ({ message: `HTTP ${response.status}` }));
+        return { success: false, error: responseData.detail || responseData.message || `HTTP ${response.status}` };
       }
 
-      console.log('Update successful!');
-      
-      // Refresh the appointments list
       await fetchAppointments();
-      
-      return { 
-        success: true, 
-        data: responseData, 
-        message: "Appointment updated successfully!" 
-      };
-
+      return { success: true, message: "Appointment updated successfully!" };
     } catch (error) {
-      console.error('Update appointment network error:', error);
       const errorMessage = error instanceof Error ? error.message : "Network error occurred";
       setError(errorMessage);
       return { success: false, error: errorMessage };
@@ -536,15 +606,12 @@ const fetchCustomers = async () => {
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
-        console.error('Delete appointment failed:', errorData);
         return { success: false, error: errorData.message || `Failed to delete appointment (HTTP ${res.status})` };
       }
 
-      console.log('Successfully deleted appointment:', appointmentId);
       await fetchAppointments();
       return { success: true, message: "Appointment deleted successfully!" };
     } catch (err) {
-      console.error('Delete appointment error:', err);
       const errorMessage = err instanceof Error ? err.message : "Failed to delete appointment";
       setError(errorMessage);
       return { success: false, error: errorMessage };
@@ -574,7 +641,6 @@ const fetchCustomers = async () => {
 
       return { success: true, message: data.message || "Reminders sent successfully" };
     } catch (err) {
-      console.error('Send reminders error:', err);
       const errorMessage = err instanceof Error ? err.message : "Failed to send reminders";
       setError(errorMessage);
       return { success: false, error: errorMessage };
@@ -601,23 +667,20 @@ const fetchCustomers = async () => {
     });
   };
 
-  // FIXED: Improved useEffect with error handling
+  // Load initial data
   useEffect(() => {
     const loadInitialData = async () => {
-      console.log('=== LOADING INITIAL DATA ===');
+      console.log('Loading initial data...');
       
-      // Fetch customers and orders from database
       const customersResult = await fetchCustomers();
-      const ordersResult = await fetchOrders(); // Load all orders initially
+      const ordersResult = await fetchOrders();
       const appointmentsResult = await fetchAppointments();
       
       console.log('Initial data loading results:', {
-        customers: customersResult.success ? 'Success' : customersResult.error,
-        orders: ordersResult.success ? 'Success' : ordersResult.error,
-        appointments: appointmentsResult.success ? 'Success' : appointmentsResult.error
+        customers: customersResult.success ? `✅ ${customersResult.data?.length} customers` : `❌ ${customersResult.error}`,
+        orders: ordersResult.success ? `✅ ${ordersResult.data?.length} orders` : `❌ ${ordersResult.error}`,
+        appointments: appointmentsResult.success ? `✅ Success` : `❌ ${appointmentsResult.error}`
       });
-      
-      console.log('=== INITIAL DATA LOADED ===');
     };
     
     loadInitialData();
@@ -627,15 +690,14 @@ const fetchCustomers = async () => {
     fetchAppointments();
   }, [filters]);
 
-  // New useEffect to filter orders when customer changes
+  // Filter orders when customer changes
   useEffect(() => {
     if (formData.customer_id) {
       filterOrdersByCustomer(formData.customer_id);
     } else {
-      // If no customer selected, show all orders
       setOrders(allOrders);
     }
-  }, [formData.customer_id, allOrders]);
+  }, [formData.customer_id, allOrders, customers]);
 
   return {
     appointments,
@@ -648,6 +710,7 @@ const fetchCustomers = async () => {
     error,
     formData,
     setFormData,
+    setOrders, // Add setOrders to the return object
     filters,
     handleFilterChange,
     clearFilters,  
