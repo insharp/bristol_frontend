@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import Button from "@/components/ui/button";
 import ReusableTable from "@/components/ui/ReusableTable";
 import SlideModal from "@/components/ui/SlideModal";
-import { useAppointments, Appointment, FormData } from "@/app/hooks/useAppointment";
+import { useAppointments, Appointment, FormData, Customer } from "@/app/hooks/useAppointment";
 import { Plus, RefreshCw, Calendar, Clock, X } from "lucide-react";
 
 interface AppointmentManagementProps {
@@ -24,22 +24,36 @@ interface AppointmentManagementProps {
   }>;
 }
 
+// Helper function to get customer display name for table
 const getCustomerDisplayName = (customer: any) => {
   if (!customer) return 'Unknown Customer';
   
-  // Handle different possible field names and null values
-  const name = customer.name || 
-               customer.customer_name || 
-               customer.full_name || 
-               customer.first_name ||
-               customer.customer_name;
+  // For table display, use a cleaner format
+  if (customer.customer_type === 'corporate') {
+    return customer.company_name || `Corporate Customer #${customer.id}`;
+  } else {
+    return customer.customer_name || `Customer #${customer.id}`;
+  }
+};
+
+// Helper function specifically for dropdown to show batch names when needed
+const getCustomerDropdownName = (customer: any) => {
+  if (!customer) return 'Unknown Customer';
   
-  // Check for null, empty, or "null" string values
-  if (!name || name === 'null' || name.toString().trim() === '' || name.toString().toLowerCase() === 'null') {
-    return `Customer #${customer.id || 'Unknown'}`;
+  let baseName = '';
+  
+  if (customer.customer_type === 'corporate') {
+    baseName = customer.company_name || `Corporate Customer #${customer.id}`;
+  } else {
+    baseName = customer.customer_name || `Customer #${customer.id}`;
   }
   
-  return name.toString().trim();
+  // Add batch name if it exists to differentiate similar names
+  if (customer.batch_name) {
+    return `${baseName} - ${customer.batch_name}`;
+  }
+  
+  return baseName;
 };
 
 // Message Modal Component
@@ -184,9 +198,11 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
     appointments,
     customers,
     orders,
+    allOrders, // Make sure we have access to allOrders
     loading,
     formData,
     setFormData,
+    setOrders, // Add setOrders to destructuring
     filters,
     handleFilterChange,
     clearFilters,
@@ -202,7 +218,7 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
   } = useAppointments(apiEndpoint);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [dateFilter, setDateFilter] = useState(""); // New date filter state
+  const [dateFilter, setDateFilter] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit" | "view">("create");
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
@@ -253,10 +269,6 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
   };
 
   const validateForm = () => {
-    console.log('=== VALIDATION DEBUG ===');
-    console.log('Modal mode:', modalMode);
-    console.log('Form data:', formData);
-    
     const errors = {
       customer_id: '',
       order_id: '',
@@ -267,48 +279,35 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
 
     if (modalMode === "create" && !formData.customer_id) {
       errors.customer_id = 'Customer is required';
-      console.log('Validation error: Customer required for create mode');
     } else if (modalMode === "edit" && !formData.customer_id) {
       errors.customer_id = 'Customer information is missing';
-      console.log('Validation error: Customer missing in edit mode');
     }
 
     if (!formData.order_id) {
       errors.order_id = 'Order is required';
-      console.log('Validation error: Order required');
     }
 
     if (!formData.appointment_type) {
       errors.appointment_type = 'Appointment type is required';
-      console.log('Validation error: Appointment type required');
     }
 
     if (!formData.appointment_date) {
       errors.appointment_date = 'Date is required';
-      console.log('Validation error: Date required');
     } else {
       const selectedDate = new Date(formData.appointment_date);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       if (selectedDate < today && modalMode === "create") {
         errors.appointment_date = 'Date cannot be in the past';
-        console.log('Validation error: Past date not allowed for create');
       }
     }
 
     if (!formData.appointment_time) {
       errors.appointment_time = 'Time is required';
-      console.log('Validation error: Time required');
     }
 
-    console.log('Validation errors:', errors);
     setFormErrors(errors);
-    
-    const isValid = Object.values(errors).every(error => !error);
-    console.log('Validation result:', isValid);
-    console.log('=== VALIDATION DEBUG END ===');
-    
-    return isValid;
+    return Object.values(errors).every(error => !error);
   };
 
   // Clear form errors when form data changes
@@ -325,23 +324,20 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
     }
   }, [formData]);
 
-  // Initial fetch - Updated to handle potential errors from data fetching
+  // Initial fetch
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        // Fetch appointments
         const appointmentsResult = await fetchAppointments();
         if (!appointmentsResult.success) {
           showErrorMessage('Fetch Error', appointmentsResult.error || 'Failed to load appointments');
         }
 
-        // Fetch customers with error handling
         const customersResult = await fetchCustomers();
         if (!customersResult.success) {
           showErrorMessage('Fetch Error', customersResult.error || 'Failed to load customers');
         }
 
-        // Fetch orders with error handling
         const ordersResult = await fetchOrders();
         if (!ordersResult.success) {
           showErrorMessage('Fetch Error', ordersResult.error || 'Failed to load orders');
@@ -389,7 +385,7 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
       const searchLower = searchQuery.toLowerCase();
       filtered = filtered.filter(appointment => {
         const customer = customers.find(c => Number(c.id) === Number(appointment.customer_id));
-        const customerName = appointment.customer_name || customer?.name || `Customer ${appointment.customer_id}`;
+        const customerName = appointment.customer_name || getCustomerDisplayName(customer);
         const order = orders.find(o => Number(o.id) === Number(appointment.order_id));
         const orderNumber = appointment.order_number || order?.order_number || `${appointment.order_id}`;
         
@@ -416,7 +412,7 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
   // Helper function to format appointment info for delete modal
   const getAppointmentInfo = (appointment: Appointment) => {
     const customer = customers.find(c => Number(c.id) === Number(appointment.customer_id));
-    const customerName = appointment.customer_name || customer?.name || `Customer ${appointment.customer_id}`;
+    const customerName = appointment.customer_name || getCustomerDisplayName(customer);
     
     const date = new Date(appointment.appointment_date);
     const formattedDate = date.toLocaleDateString("en-GB", {
@@ -470,7 +466,6 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
     try {
       const result = await deleteAppointment(deleteModal.appointmentId);
       if (result.success) {
-        // Close both modals and clear selected appointment
         setDeleteModal({
           isOpen: false,
           appointmentId: 0,
@@ -485,31 +480,25 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
         setIsModalOpen(false);
         setSelectedAppointment(null);
         
-        // Show success message after a brief delay
         setTimeout(() => {
           showSuccessMessage('Success!', `Appointment for "${deleteModal.appointmentInfo.customerName}" has been deleted successfully.`);
         }, 100);
         
-        // Refresh appointments
         await fetchAppointments();
       } else {
         showErrorMessage('Cancellation Failed', result.error || 'Failed to cancel appointment');
-        
-        // Reset deleting state but keep modal open
         setDeleteModal(prev => ({ ...prev, isDeleting: false }));
       }
     } catch (error) {
       console.error('Failed to cancel appointment:', error);
       showErrorMessage('Cancellation Failed', 'Failed to cancel appointment. Please try again.');
-      
-      // Reset deleting state but keep modal open
       setDeleteModal(prev => ({ ...prev, isDeleting: false }));
     }
   };
 
   // Handler to close delete modal
   const handleCloseDeleteModal = () => {
-    if (deleteModal.isDeleting) return; // Prevent closing while deleting
+    if (deleteModal.isDeleting) return;
     
     setDeleteModal({
       isOpen: false,
@@ -524,76 +513,112 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
     });
   };
 
-const columns = [
-  { 
-    key: "order_id", 
-    label: "Order ID", 
-    width: "170px",
-    render: (value: any) => {
-      const order = orders.find(o => Number(o.id) === Number(value));
-      const orderNumber = order?.order_number || `${value}`;
-      return <span className="font-medium">{orderNumber}</span>;
-    }
-  },
-  { 
-    key: "customer_id", 
-    label: "Customer ID", 
-    width: "230px",
-    render: (value: any) => (
-      <span className="text-gray-600 text-center block"  style={{ paddingRight: "60px" }}> {value}</span>
-    )
-  },
-  {
-    key: "customer_name",
-    label: "Customer Name",
-    minWidth: "180px",
-    render: (value: any, row: Appointment) => {
-      const customer = customers.find(c => Number(c.id) === Number(row.customer_id));
-      const customerName = getCustomerDisplayName({
-        name: value || customer?.name,
-        id: row.customer_id
-      });
-      return <span className="font-medium">{customerName}</span>;
+  const columns = [
+    { 
+      key: "order_id", 
+      label: "Order ID", 
+      width: "170px",
+      render: (value: any) => {
+        const order = orders.find(o => Number(o.id) === Number(value));
+        const orderNumber = order?.order_number || `${value}`;
+        return <span className="font-medium">{orderNumber}</span>;
+      }
     },
-  },
-  {
-    key: "appointment_date",
-    label: "Date (dd/mm/yyyy)",
-    width: "250px",
-    render: (value: string) => {
-      const date = new Date(value);
-      return (
-        <span>
-          {date.toLocaleDateString("en-GB", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-          })}
-        </span>
-      );
+    { 
+      key: "customer_id", 
+      label: "Customer ID", 
+      width: "230px",
+      render: (value: any) => (
+        <span className="text-gray-600 text-center block" style={{ paddingRight: "60px" }}>{value}</span>
+      )
     },
-  },
-  {
-    key: "appointment_time",
-    label: "Time",
-    width: "150px",
-    render: (value: string) => {
-      const [hours, minutes] = value.split(":");
-      const hour = parseInt(hours);
-      const ampm = hour >= 12 ? "PM" : "AM";
-      const displayHour = hour % 12 || 12;
-      return <span>{`${displayHour}:${minutes} ${ampm}`}</span>;
+    {
+      key: "customer_name",
+      label: "Customer Name",
+      minWidth: "180px",
+      render: (value: any, row: Appointment) => {
+        const customer = customers.find(c => Number(c.id) === Number(row.customer_id));
+        const customerName = getCustomerDisplayName(customer);
+        return <span className="font-medium">{customerName}</span>;
+      },
     },
-  },
-];
+    {
+      key: "appointment_date",
+      label: "Date (dd/mm/yyyy)",
+      width: "250px",
+      render: (value: string) => {
+        const date = new Date(value);
+        return (
+          <span>
+            {date.toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            })}
+          </span>
+        );
+      },
+    },
+    {
+      key: "appointment_time",
+      label: "Time",
+      width: "150px",
+      render: (value: string) => {
+        const [hours, minutes] = value.split(":");
+        const hour = parseInt(hours);
+        const ampm = hour >= 12 ? "PM" : "AM";
+        const displayHour = hour % 12 || 12;
+        return <span>{`${displayHour}:${minutes} ${ampm}`}</span>;
+      },
+    },
+  ];
 
-  // Helper function to set form data from appointment
+  // Helper function to set form data from appointment - enhanced for new customer selection format
   const setFormDataFromAppointment = (appointment: Appointment) => {
-    console.log('Setting form data from appointment:', appointment);
+    console.log('\n=== SETTING FORM DATA FROM APPOINTMENT ===');
+    console.log('Appointment data:', appointment);
+    console.log('Appointment order_id:', appointment.order_id);
+    
+    // Use allOrders instead of filtered orders to find the match
+    // The appointment.order_id corresponds to our order.original_id
+    const matchingOrder = allOrders.find(order => {
+      const match = order.original_id === appointment.order_id;
+      console.log(`Checking order ${order.id}: original_id(${order.original_id}) === appointment.order_id(${appointment.order_id}) = ${match}`);
+      return match;
+    });
+    
+    console.log('Available orders:', allOrders.map(o => ({ id: o.id, original_id: o.original_id, order_number: o.order_number, customer_id: o.customer_id })));
+    console.log('Looking for appointment.order_id:', appointment.order_id);
+    console.log('Matching order found:', matchingOrder);
+    
+    // Find the customer entries that match this customer ID
+    const matchingCustomers = customers.filter(c => c.id === appointment.customer_id);
+    console.log('Matching customers:', matchingCustomers);
+    
+    // For editing existing appointments, we need to determine which customer/batch combination was used
+    // If there's only one match, use it. If multiple, we may need to infer from the order
+    let selectedCustomer = matchingCustomers[0]; // Default to first match
+    
+    if (matchingCustomers.length > 1 && matchingOrder) {
+      // Try to match based on bulk_id if available
+      const customerWithMatchingBatch = matchingCustomers.find(c => 
+        c.batch_measurement_id && String(c.batch_measurement_id) === matchingOrder.bulk_id
+      );
+      if (customerWithMatchingBatch) {
+        selectedCustomer = customerWithMatchingBatch;
+      }
+    }
+    
+    console.log('Selected customer for form:', selectedCustomer);
+    
+    // Create customer selection value in the new format: customerId|batchId
+    const customerSelectionValue = selectedCustomer 
+      ? `${selectedCustomer.id}|${selectedCustomer.batch_measurement_id || 'none'}`
+      : appointment.customer_id.toString();
     
     const newFormData = {
-      customer_id: appointment.customer_id.toString(),
-      order_id: appointment.order_id.toString(),
+      customer_id: customerSelectionValue,
+      order_id: matchingOrder ? String(matchingOrder.id) : "",
       appointment_type: appointment.appointment_type,
       appointment_date: appointment.appointment_date,
       appointment_time: appointment.appointment_time,
@@ -601,8 +626,19 @@ const columns = [
       status: appointment.status
     };
     
-    console.log('New form data being set:', newFormData);
+    console.log('Setting form data:', newFormData);
     setFormData(newFormData);
+    
+    // Manually trigger order filtering for this customer
+    console.log('Manually triggering order filter for customer selection:', customerSelectionValue);
+    // The filterOrdersByCustomer will be called automatically by the useEffect
+    
+    // If no order found, check if we need to wait for data to load
+    if (!matchingOrder) {
+      console.warn('No matching order found! This might be a data loading timing issue.');
+      console.log('Total allOrders:', allOrders.length);
+      console.log('Total customers:', customers.length);
+    }
   };
 
   // Table actions based on permissions
@@ -619,11 +655,14 @@ const columns = [
           </svg>
         ),
         onClick: (appointment: Appointment) => {
-          console.log('View appointment clicked:', appointment);
           setSelectedAppointment(appointment);
+          // Set form data and trigger customer filtering first
           setFormDataFromAppointment(appointment);
-          setModalMode("view");
-          setIsModalOpen(true);
+          // Small delay to let customer filtering complete
+          setTimeout(() => {
+            setModalMode("view");
+            setIsModalOpen(true);
+          }, 100);
         },
       });
     }
@@ -637,11 +676,14 @@ const columns = [
           </svg>
         ),
         onClick: (appointment: Appointment) => {
-          console.log('Edit appointment clicked:', appointment);
           setSelectedAppointment(appointment);
+          // Set form data and trigger customer filtering first
           setFormDataFromAppointment(appointment);
-          setModalMode("edit");
-          setIsModalOpen(true);
+          // Small delay to let customer filtering complete
+          setTimeout(() => {
+            setModalMode("edit");
+            setIsModalOpen(true);
+          }, 100);
         },
       });
     }
@@ -668,7 +710,6 @@ const columns = [
   const openCreateModal = () => {
     if (!permissions.canCreate) return;
     
-    console.log('Opening create modal');
     setSelectedAppointment(null);
     setFormData({
       customer_id: "",
@@ -691,7 +732,6 @@ const columns = [
   };
 
   const closeModal = () => {
-    console.log('Closing modal');
     setIsModalOpen(false);
     setSelectedAppointment(null);
     setFormErrors({
@@ -705,31 +745,26 @@ const columns = [
 
   // CRUD handlers
   const handleCreateAppointment = async () => {
-    console.log('=== CREATE APPOINTMENT DEBUG ===');
-    console.log('Form data:', formData);
-    
     if (!validateForm()) {
-      console.log('CREATE: Validation failed');
       return;
     }
-    
-    console.log('Creating appointment with data:', formData);
     
     const result = await createAppointment();
     if (result.success) {
       closeModal();
-      const customerName = customers.find(c => c.id === parseInt(formData.customer_id))?.name || 'Customer';
+      // Parse customer selection to get customer info for success message
+      const [customerIdStr] = formData.customer_id.split('|');
+      const customerId = parseInt(customerIdStr);
+      const customer = customers.find(c => c.id === customerId);
+      const customerName = getCustomerDisplayName(customer);
       showSuccessMessage('Success!', `Appointment for "${customerName}" has been scheduled successfully.`);
     } else {
-      console.error('Create appointment error:', result.error);
       showErrorMessage('Creation Failed', result.error || 'Failed to create appointment');
     }
   };
 
   const handleUpdateAppointment = async () => {
-    const validationResult = validateForm();
-    
-    if (!validationResult) {
+    if (!validateForm()) {
       return;
     }
     
@@ -742,11 +777,14 @@ const columns = [
      
       if (result.success) {
         closeModal();
-        const customerName = customers.find(c => c.id === parseInt(formData.customer_id))?.name || 'Customer';
+        // Parse customer selection to get customer info for success message
+        const [customerIdStr] = formData.customer_id.split('|');
+        const customerId = parseInt(customerIdStr);
+        const customer = customers.find(c => c.id === customerId);
+        const customerName = getCustomerDisplayName(customer);
         showSuccessMessage('Success!', `Appointment for "${customerName}" has been updated successfully.`);
         await fetchAppointments();
       } else {
-        console.error('Update appointment error:', result.error);
         showErrorMessage('Update Failed', result.error || 'Failed to update appointment');
       }
     } catch (error) {
@@ -759,7 +797,6 @@ const columns = [
     e.preventDefault();
 
     if (modalMode === "create") {
-      console.log('Calling handleCreateAppointment');
       await handleCreateAppointment();
     } else if (modalMode === "edit") {
       await handleUpdateAppointment();
@@ -776,7 +813,7 @@ const columns = [
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
-      <main className="flex-1 p-6  bg-blue-50/50 rounded-2xl  flex flex-col overflow-hidden">
+      <main className="flex-1 p-6 bg-blue-50/50 rounded-2xl flex flex-col overflow-hidden">
         {/* Header Section */}
         <div className="flex-shrink-0 mb-6">
           {/* Top Navigation Tabs */}
@@ -808,7 +845,7 @@ const columns = [
             <h1 className="text-2xl font-bold text-blue-600">{title}</h1>
             {permissions.canCreate && (
               <Button onClick={openCreateModal} className="bg-blue-600 hover:bg-blue-700">
-               + Add Appointment
+                + Add Appointment
               </Button>
             )}
           </div>
@@ -842,26 +879,24 @@ const columns = [
             {/* Right side - Search Bar and Date Filter (only in view tab) */}
             <div className="flex items-center space-x-4">
               {/* Date Filter - Only show in View Appointments tab */}
-             {activeTab === "view" && (
-              <div className="relative">
-              <input
-                type="date"
-                value={dateFilter}  
-                onChange={(e) => setDateFilter(e.target.value)} 
-                className="w-full px-2 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                
-                required
-              />
-                {dateFilter && (
-                  <button
-                    onClick={clearDateFilter}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center hover:text-gray-700"
-                  >
-                    <X className="h-4 w-4 text-gray-400" />
-                  </button>
-                )}
-              </div>
-)}
+              {activeTab === "view" && (
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={dateFilter}  
+                    onChange={(e) => setDateFilter(e.target.value)} 
+                    className="w-full px-2 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  {dateFilter && (
+                    <button
+                      onClick={clearDateFilter}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center hover:text-gray-700"
+                    >
+                      <X className="h-4 w-4 text-gray-400" />
+                    </button>
+                  )}
+                </div>
+              )}
               {/* Search Bar */}
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -894,31 +929,41 @@ const columns = [
 
         <SlideModal isOpen={isModalOpen} onClose={closeModal} title={getModalTitle()}>
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            {/* Customer Selection with Enhanced Display - UPDATED */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Customer *</label>
+              <select
+                value={formData.customer_id}
+                onChange={(e) => {
+                  const selectedValue = e.target.value;
+                  setFormData({ 
+                    ...formData, 
+                    customer_id: selectedValue, // Store the full unique identifier (customerId|batchId)
+                    order_id: "" 
+                  });
+                }}
+                className={`w-full px-3 py-2 border rounded-lg ${
+                  formErrors.customer_id ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                } focus:outline-none focus:ring-2`}
+                disabled={modalMode === "view"}
+                required
+              >
+                <option value="">Select Customer</option>
+                {customers.map((customer) => (
+                  <option 
+                    key={customer.unique_key} // Use unique_key for React key
+                    value={`${customer.id}|${customer.batch_measurement_id || 'none'}`} // Pass both customer ID and batch ID
+                  >
+                    {getCustomerDropdownName(customer)}
+                  </option>
+                ))}
+              </select>
+              {formErrors.customer_id && (
+                <p className="mt-1 text-sm text-red-600">{formErrors.customer_id}</p>
+              )}
+            </div>
 
-         {/* Customer Selection */}
-          <div>
-            <label className="block text-sm font-medium mb-2">Customer ID *</label>
-            <select
-              value={formData.customer_id}
-              onChange={(e) => setFormData({ ...formData, customer_id: e.target.value })}
-              className={`w-full px-3 py-2 border rounded-lg ${
-                formErrors.customer_id ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-              } focus:outline-none focus:ring-2`}
-              disabled={modalMode === "view"}
-              required
-            >
-              <option value="">Select Customer ID</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.id} - {getCustomerDisplayName(customer)}
-                </option>
-              ))}
-            </select>
-            {formErrors.customer_id && (
-              <p className="mt-1 text-sm text-red-600">{formErrors.customer_id}</p>
-            )}
-          </div>
-            {/* Order Selection */}
+            {/* Order Selection - Filtered by customer */}
             <div>
               <label className="block text-sm font-medium mb-2">Order *</label>
               <select
@@ -927,24 +972,27 @@ const columns = [
                 className={`w-full px-3 py-2 border rounded-lg ${
                   formErrors.order_id ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                 } focus:outline-none focus:ring-2`}
-                disabled={modalMode === "view"}
+                disabled={modalMode === "view" || !formData.customer_id}
                 required
               >
-                <option value="">Select Order</option>
-                {orders.map((order) => {
-                  return (
-                    <option key={order.id} value={order.id}>
-                      {order.order_number}
-                    </option>
-                  );
-                })}
+                <option value="">
+                  {!formData.customer_id ? "Select a customer first" : "Select Order"}
+                </option>
+                {orders.map((order) => (
+                  <option key={order.id} value={order.id}>
+                    {order.order_number}
+                  </option>
+                ))}
               </select>
               {formErrors.order_id && (
                 <p className="mt-1 text-sm text-red-600">{formErrors.order_id}</p>
               )}
+              {formData.customer_id && orders.length === 0 && (
+                <p className="mt-1 text-sm text-amber-600">No orders found for this customer</p>
+              )}
             </div>
 
-            {/* Appointment Type */}
+            {/* Rest of the form fields remain the same */}
             <div>
               <label className="block text-sm font-medium mb-2">Appointment Type *</label>
               <select
@@ -1059,7 +1107,6 @@ const columns = [
                     <Button 
                       type="button"
                       onClick={() => {
-                        console.log('Navigating from view to edit modal');
                         setIsModalOpen(false);
                         setTimeout(() => {
                           setModalMode("edit");

@@ -408,7 +408,7 @@ const fetchSummary = useCallback(async (startDate: string, endDate: string) => {
     }
   }, [baseUrl]);
 
-  // Delete entry - IMPROVED VERSION
+  // Delete entry 
   const deleteEntry = useCallback(async (entryId: number) => {
     try {
       console.log('Deleting entry with ID:', entryId);
