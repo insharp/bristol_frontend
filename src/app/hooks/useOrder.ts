@@ -951,7 +951,7 @@ export const useOrderManagement = () => {
     );
   }, [dropdownData.products]);
 
-  // Update the enrichBulkCustomOrders function to include batch name
+
 // Update the enrichBulkCustomOrders function to be safe
 const enrichBulkCustomOrders = useCallback(async (orders: BulkOrderCustomResponse[]): Promise<BulkOrderCustomResponse[]> => {
   return Promise.all(

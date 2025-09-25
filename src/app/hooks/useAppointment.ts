@@ -46,19 +46,21 @@ export interface ReminderStats {
   upcoming_reminders: number;
 }
 
-// Enhanced Customer interface
+// Enhanced Customer interface - UPDATED to include default customer type
 export interface Customer {
   id: number;
   customer_name?: string;
   company_name?: string;
   contact_person?: string;
-  customer_type: "individual" | "corporate";
+  customer_type: "individual" | "corporate" | "default"; // Added "default" type
   phone_number?: string;
   email?: string;
   delivery_address?: string;
   special_notes?: string;
   batch_name?: string;
   display_name?: string; // For dropdown display
+  batch_measurement_id?: number; // To uniquely identify different batch measurements
+  unique_key?: string; // For React keys when same customer has multiple batches
 }
 
 // Enhanced Order interface to handle unique IDs and avoid conflicts
@@ -113,8 +115,8 @@ export const useAppointments = (apiEndpoint?: string) => {
   const ordersBaseUrl = `http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}`;
   const today = new Date().toISOString().split("T")[0];
 
-  // Fetch batch information from corporate bulk measurements
-  const fetchBatchInformation = async (): Promise<Record<number, string>> => {
+  // Fetch batch information from corporate bulk measurements - UPDATED to return all measurements
+  const fetchBatchInformation = async (): Promise<any[]> => {
     try {
       const possibleEndpoints = [
         `${customerBaseUrl}/corporate-measurement/corporate/all`,
@@ -134,15 +136,13 @@ export const useAppointments = (apiEndpoint?: string) => {
             console.log('Batch measurements response:', data);
             const measurements = data.data || data || [];
             
-            // Create mapping of corporate_customer_id to batch_name
-            const batchMapping: Record<number, string> = {};
-            measurements.forEach((measurement: any) => {
-              if (measurement.corporate_customer_id && measurement.batch_name) {
-                batchMapping[measurement.corporate_customer_id] = measurement.batch_name;
-              }
-            });
+            // Return all measurements that have both corporate_customer_id and batch_name
+            const validMeasurements = measurements.filter((measurement: any) => 
+              measurement.corporate_customer_id && measurement.batch_name
+            );
             
-            return batchMapping;
+            console.log('Valid batch measurements:', validMeasurements);
+            return validMeasurements;
           }
         } catch (err) {
           console.log(`Endpoint ${endpoint} failed:`, err);
@@ -152,45 +152,76 @@ export const useAppointments = (apiEndpoint?: string) => {
       console.error('Error fetching batch information:', err);
     }
     
-    return {};
+    return [];
   };
 
-  // Enhanced fetchCustomers with proper display formatting
-  const fetchCustomers = async () => {
-    try {
-      console.log('Fetching customers from:', `${customerBaseUrl}/customer`);
-      const res = await fetch(`${customerBaseUrl}/customer`, { 
-        credentials: "include" 
+// Enhanced fetchCustomers - No duplicates, proper company names for corporate defaults
+const fetchCustomers = async () => {
+  try {
+    console.log('Fetching customers from:', `${customerBaseUrl}/customer`);
+    const res = await fetch(`${customerBaseUrl}/customer`, { 
+      credentials: "include" 
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      const customerData = data.data || data;
+      
+      // Create a map for quick customer lookup by ID
+      const customerMap = new Map();
+      customerData.forEach((customer: any) => {
+        customerMap.set(customer.id, customer);
       });
       
-      if (res.ok) {
-        const data = await res.json();
-        const customerData = data.data || data;
+      // Fetch all batch measurements
+      const batchMeasurements = await fetchBatchInformation();
+      console.log('All batch measurements:', batchMeasurements);
+      
+      // Fetch default customers from bulk_order_default table
+      let defaultCustomerIds = new Set();
+      try {
+        console.log('Fetching default customers from bulk_order_default...');
+        const defaultRes = await fetch(`${ordersBaseUrl}/orders/bulk-default`, {
+          credentials: "include"
+        });
         
-        // Fetch batch information
-        const batchInfo = await fetchBatchInformation();
+        if (defaultRes.ok) {
+          const defaultData = await defaultRes.json();
+          const defaultOrders = Array.isArray(defaultData) ? defaultData : defaultData.data || defaultData.orders || [];
+          
+          // Extract unique customer IDs from default orders
+          defaultOrders.forEach((order: any) => {
+            if (order.CustomerID) {
+              defaultCustomerIds.add(order.CustomerID);
+            }
+          });
+          
+          console.log('Found default customer IDs:', Array.from(defaultCustomerIds));
+        }
+      } catch (error) {
+        console.log('Failed to fetch default customers:', error);
+      }
+      
+      // Transform customer data - NO DUPLICATES, show each customer once
+      const transformedCustomers: Customer[] = [];
+      const processedCustomerIds = new Set(); // Track processed customer IDs to avoid duplicates
+      
+      // Process regular customers (individual and corporate)
+      customerData.forEach((customer: any) => {
+        const customerId = parseInt(customer.id);
+        const customerType = customer.customer_type;
         
-        // Transform customer data with proper display names
-        const transformedCustomers: Customer[] = customerData.map((customer: any) => {
-          const customerId = parseInt(customer.id);
-          const customerType = customer.customer_type;
-          const batchName = batchInfo[customerId];
+        // Skip if already processed
+        if (processedCustomerIds.has(customerId)) {
+          return;
+        }
+        
+        if (customerType === 'corporate') {
+          // For corporate customers, show company name
+          const companyName = customer.company_name || 'Unknown Company';
+          const displayName = `${customerId}-${companyName}`;
           
-          let displayName: string;
-          
-          if (customerType === 'corporate') {
-            const companyName = customer.company_name || 'Unknown Company';
-            // Format: customer_id-company_name(batch_name)
-            displayName = batchName 
-              ? `${customerId}-${companyName}(${batchName})`
-              : `${customerId}-${companyName}`;
-          } else {
-            // Individual customers: customer_id-customer_name
-            const customerName = customer.customer_name || `Customer ${customerId}`;
-            displayName = `${customerId}-${customerName}`;
-          }
-          
-          return {
+          transformedCustomers.push({
             id: customerId,
             customer_name: customer.customer_name,
             company_name: customer.company_name,
@@ -200,25 +231,147 @@ export const useAppointments = (apiEndpoint?: string) => {
             email: customer.email,
             delivery_address: customer.delivery_address,
             special_notes: customer.special_notes,
-            batch_name: batchName,
-            display_name: displayName
-          };
-        });
+            batch_name: undefined, // No specific batch in dropdown
+            display_name: displayName,
+            batch_measurement_id: undefined,
+            unique_key: `${customerId}-corporate`
+          });
+          
+        } else {
+          // Individual customers: customer_id-customer_name
+          const customerName = customer.customer_name || `Customer ${customerId}`;
+          const displayName = `${customerId}-${customerName}`;
+          
+          transformedCustomers.push({
+            id: customerId,
+            customer_name: customer.customer_name,
+            company_name: customer.company_name,
+            contact_person: customer.contact_person,
+            customer_type: customerType,
+            phone_number: customer.phone_number,
+            email: customer.email,
+            delivery_address: customer.delivery_address,
+            special_notes: customer.special_notes,
+            batch_name: undefined,
+            display_name: displayName,
+            batch_measurement_id: undefined,
+            unique_key: `${customerId}-individual`
+          });
+        }
         
-        console.log('Transformed customers:', transformedCustomers);
-        setCustomers(transformedCustomers);
-        return { success: true, data: transformedCustomers };
-      } else {
-        console.error("Failed to fetch customers, status:", res.status);
-        setCustomers([]);
-        return { success: false, error: "Failed to fetch customers" };
+        // Mark as processed
+        processedCustomerIds.add(customerId);
+      });
+      
+      // Process default customers - ONLY if not already processed
+      defaultCustomerIds.forEach((customerId: any) => {
+        const customerIdNum = parseInt(customerId);
+        
+        // Skip if already processed
+        if (processedCustomerIds.has(customerIdNum)) {
+          console.log(`Customer ${customerIdNum} already processed, skipping default entry`);
+          return;
+        }
+        
+        // Look up the actual customer data from the main customer table
+        const actualCustomerData = customerMap.get(customerIdNum);
+        
+        if (actualCustomerData) {
+          // Use actual customer data with proper display based on type
+          let displayName;
+          
+          if (actualCustomerData.customer_type === 'corporate') {
+            // For corporate default customers, show company name
+            const companyName = actualCustomerData.company_name || 'Unknown Company';
+            displayName = `${customerIdNum}-${companyName}`;
+          } else {
+            // For individual default customers, show customer name
+            const customerName = actualCustomerData.customer_name || `Customer ${customerIdNum}`;
+            displayName = `${customerIdNum}-${customerName}`;
+          }
+          
+          transformedCustomers.push({
+            id: customerIdNum,
+            customer_name: actualCustomerData.customer_name,
+            company_name: actualCustomerData.company_name,
+            contact_person: actualCustomerData.contact_person,
+            customer_type: 'default', // Mark as default for order filtering logic
+            phone_number: actualCustomerData.phone_number,
+            email: actualCustomerData.email,
+            delivery_address: actualCustomerData.delivery_address,
+            special_notes: actualCustomerData.special_notes,
+            batch_name: undefined,
+            display_name: displayName,
+            batch_measurement_id: undefined,
+            unique_key: `${customerIdNum}-default`
+          });
+          
+          // Mark as processed
+          processedCustomerIds.add(customerIdNum);
+          
+        } else {
+          // Fallback if customer data not found in main table
+          console.warn(`Customer ID ${customerIdNum} found in default orders but not in main customer table`);
+          const displayName = `${customerIdNum}-Default Customer ${customerIdNum}`;
+          
+          transformedCustomers.push({
+            id: customerIdNum,
+            customer_name: `Default Customer ${customerIdNum}`,
+            company_name: undefined,
+            contact_person: undefined,
+            customer_type: 'default',
+            phone_number: undefined,
+            email: undefined,
+            delivery_address: undefined,
+            special_notes: undefined,
+            batch_name: undefined,
+            display_name: displayName,
+            batch_measurement_id: undefined,
+            unique_key: `${customerIdNum}-default-fallback`
+          });
+          
+          // Mark as processed
+          processedCustomerIds.add(customerIdNum);
+        }
+      });
+      
+      console.log('Transformed customers (no duplicates):', transformedCustomers);
+      console.log('Total unique customer entries:', transformedCustomers.length);
+      console.log('Processed customer IDs:', Array.from(processedCustomerIds));
+      
+      // Log breakdown by customer type
+      const customerTypeBreakdown = {
+        individual: transformedCustomers.filter(c => c.customer_type === 'individual').length,
+        corporate: transformedCustomers.filter(c => c.customer_type === 'corporate').length,
+        default: transformedCustomers.filter(c => c.customer_type === 'default').length
+      };
+      console.log('Customer type breakdown:', customerTypeBreakdown);
+      
+      // Log examples of corporate default customers showing company names
+      const corporateDefaults = transformedCustomers.filter(c => 
+        c.customer_type === 'default' && c.company_name
+      );
+      if (corporateDefaults.length > 0) {
+        console.log('Corporate default customers with company names:', corporateDefaults.slice(0, 3).map(c => ({
+          id: c.id,
+          company_name: c.company_name,
+          display_name: c.display_name
+        })));
       }
-    } catch (err) {
-      console.error("Error fetching customers:", err);
+      
+      setCustomers(transformedCustomers);
+      return { success: true, data: transformedCustomers };
+    } else {
+      console.error("Failed to fetch customers, status:", res.status);
       setCustomers([]);
-      return { success: false, error: "Connection error while fetching customers" };
+      return { success: false, error: "Failed to fetch customers" };
     }
-  };
+  } catch (err) {
+    console.error("Error fetching customers:", err);
+    setCustomers([]);
+    return { success: false, error: "Connection error while fetching customers" };
+  }
+};
 
   // Enhanced fetchOrders - fetch from child tables using order_id for backend reference
   const fetchOrders = async () => {
@@ -391,49 +544,162 @@ export const useAppointments = (apiEndpoint?: string) => {
     }
   };
 
-  // Filter orders by selected customer - handle both string and number IDs
-  const filterOrdersByCustomer = (customerId: string) => {
-    console.log('Filtering orders by customer:', customerId);
+  // Enhanced filter orders by selected customer - UPDATED to handle default customers
+  const filterOrdersByCustomer = (customerSelection: string) => {
+    console.log('=== FILTERING ORDERS BY CUSTOMER SELECTION ===');
+    console.log('Customer selection:', customerSelection);
     
-    if (!customerId) {
+    if (!customerSelection) {
       console.log('No customer selected, showing all orders');
       setOrders(allOrders);
       return;
     }
     
-    const customerIdNum = parseInt(customerId);
-    const selectedCustomer = customers.find(c => c.id === customerIdNum);
+    // Parse the selection to get customer ID and batch ID
+    const [customerIdStr, batchIdStr] = customerSelection.split('|');
+    const customerIdNum = parseInt(customerIdStr);
+    const batchMeasurementId = batchIdStr === 'none' ? null : parseInt(batchIdStr);
+    
+    console.log('Parsed selection:', {
+      customerId: customerIdNum,
+      batchMeasurementId: batchMeasurementId
+    });
+    
+    // Find the SPECIFIC customer entry that matches both customer ID and batch
+    const selectedCustomer = customers.find(c => 
+      c.id === customerIdNum && 
+      (batchMeasurementId === null ? !c.batch_measurement_id : c.batch_measurement_id === batchMeasurementId)
+    );
     
     if (!selectedCustomer) {
-      console.log('Customer not found, clearing orders');
+      console.log('Specific customer/batch combination not found, clearing orders');
       setOrders([]);
       return;
     }
     
-    // Filter orders that belong to the selected customer
-    const filteredOrders = allOrders.filter((order: Order) => {
-      // Direct customer match
-      const directMatch = order.customer_id === customerIdNum;
-      
-      console.log(`Order ${order.id}: customer_id=${order.customer_id}, selected=${customerIdNum}, match=${directMatch}`);
-      
-      return directMatch;
+    console.log('Selected customer details:', {
+      id: selectedCustomer.id,
+      company_name: selectedCustomer.company_name,
+      customer_name: selectedCustomer.customer_name,
+      batch_name: selectedCustomer.batch_name,
+      customer_type: selectedCustomer.customer_type,
+      batch_measurement_id: selectedCustomer.batch_measurement_id,
+      unique_key: selectedCustomer.unique_key
     });
     
-    console.log(`Found ${filteredOrders.length} orders for customer ${customerIdNum}`);
+    // Filter orders based on the specific customer/batch combination
+    const filteredOrders = allOrders.filter((order: Order) => {
+      // First check: customer ID must match
+      const customerMatch = order.customer_id === customerIdNum;
+      
+      if (!customerMatch) {
+        return false;
+      }
+      
+      // Handle different customer types
+      switch (selectedCustomer.customer_type) {
+        case 'individual':
+          console.log(`Order ${order.id}: Individual customer - customer match: ${customerMatch}`);
+          return true;
+          
+        case 'default':
+          // For default customers, show all bulk-default orders for this customer
+          if (order.order_type === 'bulk-default') {
+            console.log(`Order ${order.id}: Default customer bulk-default - customer match: ${customerMatch}`);
+            return customerMatch;
+          }
+          // Also show single orders if they exist for this customer
+          if (order.order_type === 'single') {
+            console.log(`Order ${order.id}: Default customer single order - customer match: ${customerMatch}`);
+            return customerMatch;
+          }
+          console.log(`Order ${order.id}: Default customer non-matching order type (${order.order_type})`);
+          return false;
+          
+        case 'corporate':
+          // Case 1: Corporate customer WITHOUT specific batch selected (batch_measurement_id is null)
+          // Show ALL orders for this corporate customer
+          if (!selectedCustomer.batch_measurement_id) {
+            console.log(`Order ${order.id}: Corporate without specific batch - customer match: ${customerMatch}`);
+            return customerMatch;
+          }
+          
+          // Case 2: Corporate customer WITH specific batch selected
+          // Show orders based on order type
+          if (selectedCustomer.batch_measurement_id) {
+            
+            // For bulk-custom orders: must match the specific batch
+            if (order.order_type === 'bulk-custom') {
+              if (order.bulk_id) {
+                const batchMatch = order.bulk_id === String(selectedCustomer.batch_measurement_id);
+                console.log(`Order ${order.id}: Corporate bulk-custom - customer_match: ${customerMatch}, bulk_id: ${order.bulk_id}, target_batch_id: ${selectedCustomer.batch_measurement_id}, batch_match: ${batchMatch}`);
+                return batchMatch;
+              } else {
+                console.log(`Order ${order.id}: Corporate bulk-custom but no bulk_id - excluding`);
+                return false;
+              }
+            }
+            
+            // For bulk-default orders: show all for this customer (defaults aren't batch-specific)
+            if (order.order_type === 'bulk-default') {
+              console.log(`Order ${order.id}: Corporate bulk-default - customer_match: ${customerMatch} (showing all defaults)`);
+              return customerMatch;
+            }
+            
+            // For single orders: show all for this customer
+            if (order.order_type === 'single') {
+              console.log(`Order ${order.id}: Single order for corporate customer - customer_match: ${customerMatch}`);
+              return customerMatch;
+            }
+            
+            // For any other order types: show based on customer match
+            console.log(`Order ${order.id}: Other order type (${order.order_type}) - customer_match: ${customerMatch}`);
+            return customerMatch;
+          }
+          break;
+          
+        default:
+          // Fallback: show based on customer match
+          console.log(`Order ${order.id}: Unknown customer type (${selectedCustomer.customer_type}) - customer_match: ${customerMatch}`);
+          return customerMatch;
+      }
+      
+      // Fallback: show based on customer match
+      return customerMatch;
+    });
+    
+    console.log(`\nFILTER RESULTS:`);
+    console.log(`- Input customer ID: ${customerIdNum}`);
+    console.log(`- Input batch ID: ${batchMeasurementId}`);
+    console.log(`- Target customer: ${selectedCustomer.customer_type} ${selectedCustomer.company_name || selectedCustomer.customer_name}`);
+    console.log(`- Target batch: ${selectedCustomer.batch_name || 'N/A'}`);
+    console.log(`- Found ${filteredOrders.length} matching orders`);
+    
+    if (filteredOrders.length > 0) {
+      console.log('Matching orders:', filteredOrders.map(o => ({
+        id: o.id,
+        order_number: o.order_number,
+        order_type: o.order_type,
+        customer_id: o.customer_id,
+        bulk_id: o.bulk_id
+      })));
+    }
+    
     setOrders(filteredOrders);
     
-    // Clear selected order if it doesn't belong to the customer
+    // Clear selected order if it doesn't belong to the customer/batch combination
     if (formData.order_id) {
       const selectedOrderBelongsToCustomer = filteredOrders.some((order: Order) => 
         String(order.id) === String(formData.order_id)
       );
       
       if (!selectedOrderBelongsToCustomer) {
-        console.log('Clearing selected order as it does not belong to the selected customer');
+        console.log('Clearing selected order as it does not belong to the selected customer/batch combination');
         setFormData(prev => ({ ...prev, order_id: "" }));
       }
     }
+    
+    console.log('=== END FILTER ===\n');
   };
 
   const fetchAppointments = async () => {
@@ -470,7 +736,9 @@ export const useAppointments = (apiEndpoint?: string) => {
       return { success: false, error: "Please fill all required fields" };
     }
 
-    const customerId = parseInt(formData.customer_id);
+    // Parse customer selection to get actual customer ID
+    const [customerIdStr] = formData.customer_id.split('|');
+    const customerId = parseInt(customerIdStr);
     
     // Find the order to get its original_id (order_id) for the backend
     const selectedOrder = allOrders.find(o => String(o.id) === String(formData.order_id));
@@ -560,7 +828,9 @@ export const useAppointments = (apiEndpoint?: string) => {
       }
       
       if (dataToUse.customer_id) {
-        const customerId = parseInt(dataToUse.customer_id);
+        // Parse customer selection to get actual customer ID
+        const [customerIdStr] = dataToUse.customer_id.split('|');
+        const customerId = parseInt(customerIdStr);
         if (!isNaN(customerId)) payload.customer_id = customerId;
       }
       if (dataToUse.notes !== undefined) payload.notes = dataToUse.notes || null;
@@ -710,7 +980,7 @@ export const useAppointments = (apiEndpoint?: string) => {
     error,
     formData,
     setFormData,
-    setOrders, // Add setOrders to the return object
+    setOrders, 
     filters,
     handleFilterChange,
     clearFilters,  

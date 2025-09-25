@@ -36,6 +36,26 @@ const getCustomerDisplayName = (customer: any) => {
   }
 };
 
+// Helper function specifically for dropdown to show batch names when needed
+const getCustomerDropdownName = (customer: any) => {
+  if (!customer) return 'Unknown Customer';
+  
+  let baseName = '';
+  
+  if (customer.customer_type === 'corporate') {
+    baseName = customer.company_name || `Corporate Customer #${customer.id}`;
+  } else {
+    baseName = customer.customer_name || `Customer #${customer.id}`;
+  }
+  
+  // Add batch name if it exists to differentiate similar names
+  if (customer.batch_name) {
+    return `${baseName} - ${customer.batch_name}`;
+  }
+  
+  return baseName;
+};
+
 // Message Modal Component
 const MessageModal = ({
   isOpen,
@@ -553,7 +573,7 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
     },
   ];
 
-  // Helper function to set form data from appointment - use allOrders to avoid filtering issues
+  // Helper function to set form data from appointment - enhanced for new customer selection format
   const setFormDataFromAppointment = (appointment: Appointment) => {
     console.log('\n=== SETTING FORM DATA FROM APPOINTMENT ===');
     console.log('Appointment data:', appointment);
@@ -571,8 +591,33 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
     console.log('Looking for appointment.order_id:', appointment.order_id);
     console.log('Matching order found:', matchingOrder);
     
+    // Find the customer entries that match this customer ID
+    const matchingCustomers = customers.filter(c => c.id === appointment.customer_id);
+    console.log('Matching customers:', matchingCustomers);
+    
+    // For editing existing appointments, we need to determine which customer/batch combination was used
+    // If there's only one match, use it. If multiple, we may need to infer from the order
+    let selectedCustomer = matchingCustomers[0]; // Default to first match
+    
+    if (matchingCustomers.length > 1 && matchingOrder) {
+      // Try to match based on bulk_id if available
+      const customerWithMatchingBatch = matchingCustomers.find(c => 
+        c.batch_measurement_id && String(c.batch_measurement_id) === matchingOrder.bulk_id
+      );
+      if (customerWithMatchingBatch) {
+        selectedCustomer = customerWithMatchingBatch;
+      }
+    }
+    
+    console.log('Selected customer for form:', selectedCustomer);
+    
+    // Create customer selection value in the new format: customerId|batchId
+    const customerSelectionValue = selectedCustomer 
+      ? `${selectedCustomer.id}|${selectedCustomer.batch_measurement_id || 'none'}`
+      : appointment.customer_id.toString();
+    
     const newFormData = {
-      customer_id: appointment.customer_id.toString(),
+      customer_id: customerSelectionValue,
       order_id: matchingOrder ? String(matchingOrder.id) : "",
       appointment_type: appointment.appointment_type,
       appointment_date: appointment.appointment_date,
@@ -585,10 +630,8 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
     setFormData(newFormData);
     
     // Manually trigger order filtering for this customer
-    console.log('Manually triggering order filter for customer:', appointment.customer_id);
-    const customerFilteredOrders = allOrders.filter(order => order.customer_id === appointment.customer_id);
-    console.log('Filtered orders for this customer:', customerFilteredOrders);
-    setOrders(customerFilteredOrders);
+    console.log('Manually triggering order filter for customer selection:', customerSelectionValue);
+    // The filterOrdersByCustomer will be called automatically by the useEffect
     
     // If no order found, check if we need to wait for data to load
     if (!matchingOrder) {
@@ -709,7 +752,10 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
     const result = await createAppointment();
     if (result.success) {
       closeModal();
-      const customer = customers.find(c => c.id === parseInt(formData.customer_id));
+      // Parse customer selection to get customer info for success message
+      const [customerIdStr] = formData.customer_id.split('|');
+      const customerId = parseInt(customerIdStr);
+      const customer = customers.find(c => c.id === customerId);
       const customerName = getCustomerDisplayName(customer);
       showSuccessMessage('Success!', `Appointment for "${customerName}" has been scheduled successfully.`);
     } else {
@@ -731,7 +777,10 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
      
       if (result.success) {
         closeModal();
-        const customer = customers.find(c => c.id === parseInt(formData.customer_id));
+        // Parse customer selection to get customer info for success message
+        const [customerIdStr] = formData.customer_id.split('|');
+        const customerId = parseInt(customerIdStr);
+        const customer = customers.find(c => c.id === customerId);
         const customerName = getCustomerDisplayName(customer);
         showSuccessMessage('Success!', `Appointment for "${customerName}" has been updated successfully.`);
         await fetchAppointments();
@@ -880,13 +929,18 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
 
         <SlideModal isOpen={isModalOpen} onClose={closeModal} title={getModalTitle()}>
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
-            {/* Customer Selection with Enhanced Display */}
+            {/* Customer Selection with Enhanced Display - UPDATED */}
             <div>
               <label className="block text-sm font-medium mb-2">Customer *</label>
               <select
                 value={formData.customer_id}
                 onChange={(e) => {
-                  setFormData({ ...formData, customer_id: e.target.value, order_id: "" });
+                  const selectedValue = e.target.value;
+                  setFormData({ 
+                    ...formData, 
+                    customer_id: selectedValue, // Store the full unique identifier (customerId|batchId)
+                    order_id: "" 
+                  });
                 }}
                 className={`w-full px-3 py-2 border rounded-lg ${
                   formErrors.customer_id ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
@@ -896,8 +950,11 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
               >
                 <option value="">Select Customer</option>
                 {customers.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.display_name}
+                  <option 
+                    key={customer.unique_key} // Use unique_key for React key
+                    value={`${customer.id}|${customer.batch_measurement_id || 'none'}`} // Pass both customer ID and batch ID
+                  >
+                    {getCustomerDropdownName(customer)}
                   </option>
                 ))}
               </select>
