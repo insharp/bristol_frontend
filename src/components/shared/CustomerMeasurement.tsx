@@ -79,17 +79,10 @@ const CustomerMeasurement: React.FC<CustomerMeasurementProps> = ({
     try {
       if (activeFilter === 'individual') {
         const data = await fetchIndividualMeasurements();
-        console.log('=== DEBUGGING INDIVIDUAL DATA ===');
-        console.log('Full data array:', data);
-        console.log('First item:', data?.[0]);
-        console.log('Available keys in first item:', data?.[0] ? Object.keys(data[0]) : 'No data');
-        console.log('ID value:', data?.[0]?.id);
-        console.log('================================');
         setIndividualData(data);
       } else {
         const data = await fetchCorporateMeasurements();
         setCorporateData(data);
-        console.log(`corporate_data:${JSON.stringify(data)}`)
       }
     } catch (err) {
       // Error is already set by the hook
