@@ -310,7 +310,7 @@ export const useAppointments = (apiEndpoint?: string) => {
                   if (source.type === 'single') {
                     // From single_orders table: has customerid field
                     customerId = order.customerid || 0;
-                    orderNumber = `Single-${order.order_id}`;
+                    orderNumber = `Individual-${order.order_id}`;
                     console.log(`  Single order - customerid: ${order.customerid} -> ${customerId}`);
                     
                   } else if (source.type === 'bulk-custom') {
@@ -318,13 +318,13 @@ export const useAppointments = (apiEndpoint?: string) => {
                     const bulkIdValue = order.Bulkid;
                     customerId = bulkToCustomerMap[String(bulkIdValue)] || 0;
                     bulkId = bulkIdValue ? String(bulkIdValue) : undefined;
-                    orderNumber = `Bulk-Custom-${order.order_id}`;
+                    orderNumber = `Corporate-${order.order_id}`;
                     console.log(`  Bulk custom - Bulkid: ${bulkIdValue} -> customer: ${customerId}`);
                     
                   } else if (source.type === 'bulk-default') {
                     // From bulk_order_default table: has CustomerID field
                     customerId = order.CustomerID || 0;
-                    orderNumber = `Bulk-Default-${order.order_id}`;
+                    orderNumber = `Default-${order.order_id}`;
                     console.log(`  Bulk default - CustomerID: ${order.CustomerID} -> ${customerId}`);
                   }
                   
