@@ -3,8 +3,10 @@ import React, { useEffect, useState } from "react";
 import Button from "@/components/ui/button";
 import ReusableTable from "@/components/ui/ReusableTable";
 import SlideModal from "@/components/ui/SlideModal";
+
 import { useAppointments, Appointment, FormData, Customer } from "@/app/hooks/useAppointment";
 import { Plus, RefreshCw, Calendar, Clock, X } from "lucide-react";
+import AppointmentForm from "../forms/AppointmentForm";
 
 interface AppointmentManagementProps {
   title?: string;
@@ -34,26 +36,6 @@ const getCustomerDisplayName = (customer: any) => {
   } else {
     return customer.customer_name || `Customer #${customer.id}`;
   }
-};
-
-// Helper function specifically for dropdown to show batch names when needed
-const getCustomerDropdownName = (customer: any) => {
-  if (!customer) return 'Unknown Customer';
-  
-  let baseName = '';
-  
-  if (customer.customer_type === 'corporate') {
-    baseName = customer.company_name || `Corporate Customer #${customer.id}`;
-  } else {
-    baseName = customer.customer_name || `Customer #${customer.id}`;
-  }
-  
-  // Add batch name if it exists to differentiate similar names
-  if (customer.batch_name) {
-    return `${baseName} - ${customer.batch_name}`;
-  }
-  
-  return baseName;
 };
 
 // Message Modal Component
@@ -198,11 +180,11 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
     appointments,
     customers,
     orders,
-    allOrders, // Make sure we have access to allOrders
+    allOrders,
     loading,
     formData,
     setFormData,
-    setOrders, // Add setOrders to destructuring
+    setOrders,
     filters,
     handleFilterChange,
     clearFilters,
@@ -435,6 +417,74 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
     };
   };
 
+  // Helper function to set form data from appointment - enhanced for new customer selection format
+  const setFormDataFromAppointment = (appointment: Appointment) => {
+    console.log('\n=== SETTING FORM DATA FROM APPOINTMENT ===');
+    console.log('Appointment data:', appointment);
+    console.log('Appointment order_id:', appointment.order_id);
+    
+    // Use allOrders instead of filtered orders to find the match
+    // The appointment.order_id corresponds to our order.original_id
+    const matchingOrder = allOrders.find(order => {
+      const match = order.original_id === appointment.order_id;
+      console.log(`Checking order ${order.id}: original_id(${order.original_id}) === appointment.order_id(${appointment.order_id}) = ${match}`);
+      return match;
+    });
+    
+    console.log('Available orders:', allOrders.map(o => ({ id: o.id, original_id: o.original_id, order_number: o.order_number, customer_id: o.customer_id })));
+    console.log('Looking for appointment.order_id:', appointment.order_id);
+    console.log('Matching order found:', matchingOrder);
+    
+    // Find the customer entries that match this customer ID
+    const matchingCustomers = customers.filter(c => c.id === appointment.customer_id);
+    console.log('Matching customers:', matchingCustomers);
+    
+    // For editing existing appointments, we need to determine which customer/batch combination was used
+    // If there's only one match, use it. If multiple, we may need to infer from the order
+    let selectedCustomer = matchingCustomers[0]; // Default to first match
+    
+    if (matchingCustomers.length > 1 && matchingOrder) {
+      // Try to match based on bulk_id if available
+      const customerWithMatchingBatch = matchingCustomers.find(c => 
+        c.batch_measurement_id && String(c.batch_measurement_id) === matchingOrder.bulk_id
+      );
+      if (customerWithMatchingBatch) {
+        selectedCustomer = customerWithMatchingBatch;
+      }
+    }
+    
+    console.log('Selected customer for form:', selectedCustomer);
+    
+    // Create customer selection value in the new format: customerId|batchId
+    const customerSelectionValue = selectedCustomer 
+      ? `${selectedCustomer.id}|${selectedCustomer.batch_measurement_id || 'none'}`
+      : appointment.customer_id.toString();
+    
+    const newFormData = {
+      customer_id: customerSelectionValue,
+      order_id: matchingOrder ? String(matchingOrder.id) : "",
+      appointment_type: appointment.appointment_type,
+      appointment_date: appointment.appointment_date,
+      appointment_time: appointment.appointment_time,
+      notes: appointment.notes || '',
+      status: appointment.status
+    };
+    
+    console.log('Setting form data:', newFormData);
+    setFormData(newFormData);
+    
+    // Manually trigger order filtering for this customer
+    console.log('Manually triggering order filter for customer selection:', customerSelectionValue);
+    // The filterOrdersByCustomer will be called automatically by the useEffect
+    
+    // If no order found, check if we need to wait for data to load
+    if (!matchingOrder) {
+      console.warn('No matching order found! This might be a data loading timing issue.');
+      console.log('Total allOrders:', allOrders.length);
+      console.log('Total customers:', customers.length);
+    }
+  };
+
   // Handler to open delete modal from table action
   const handleDeleteClick = (appointment: Appointment) => {
     const appointmentInfo = getAppointmentInfo(appointment);
@@ -573,74 +623,6 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
     },
   ];
 
-  // Helper function to set form data from appointment - enhanced for new customer selection format
-  const setFormDataFromAppointment = (appointment: Appointment) => {
-    console.log('\n=== SETTING FORM DATA FROM APPOINTMENT ===');
-    console.log('Appointment data:', appointment);
-    console.log('Appointment order_id:', appointment.order_id);
-    
-    // Use allOrders instead of filtered orders to find the match
-    // The appointment.order_id corresponds to our order.original_id
-    const matchingOrder = allOrders.find(order => {
-      const match = order.original_id === appointment.order_id;
-      console.log(`Checking order ${order.id}: original_id(${order.original_id}) === appointment.order_id(${appointment.order_id}) = ${match}`);
-      return match;
-    });
-    
-    console.log('Available orders:', allOrders.map(o => ({ id: o.id, original_id: o.original_id, order_number: o.order_number, customer_id: o.customer_id })));
-    console.log('Looking for appointment.order_id:', appointment.order_id);
-    console.log('Matching order found:', matchingOrder);
-    
-    // Find the customer entries that match this customer ID
-    const matchingCustomers = customers.filter(c => c.id === appointment.customer_id);
-    console.log('Matching customers:', matchingCustomers);
-    
-    // For editing existing appointments, we need to determine which customer/batch combination was used
-    // If there's only one match, use it. If multiple, we may need to infer from the order
-    let selectedCustomer = matchingCustomers[0]; // Default to first match
-    
-    if (matchingCustomers.length > 1 && matchingOrder) {
-      // Try to match based on bulk_id if available
-      const customerWithMatchingBatch = matchingCustomers.find(c => 
-        c.batch_measurement_id && String(c.batch_measurement_id) === matchingOrder.bulk_id
-      );
-      if (customerWithMatchingBatch) {
-        selectedCustomer = customerWithMatchingBatch;
-      }
-    }
-    
-    console.log('Selected customer for form:', selectedCustomer);
-    
-    // Create customer selection value in the new format: customerId|batchId
-    const customerSelectionValue = selectedCustomer 
-      ? `${selectedCustomer.id}|${selectedCustomer.batch_measurement_id || 'none'}`
-      : appointment.customer_id.toString();
-    
-    const newFormData = {
-      customer_id: customerSelectionValue,
-      order_id: matchingOrder ? String(matchingOrder.id) : "",
-      appointment_type: appointment.appointment_type,
-      appointment_date: appointment.appointment_date,
-      appointment_time: appointment.appointment_time,
-      notes: appointment.notes || '',
-      status: appointment.status
-    };
-    
-    console.log('Setting form data:', newFormData);
-    setFormData(newFormData);
-    
-    // Manually trigger order filtering for this customer
-    console.log('Manually triggering order filter for customer selection:', customerSelectionValue);
-    // The filterOrdersByCustomer will be called automatically by the useEffect
-    
-    // If no order found, check if we need to wait for data to load
-    if (!matchingOrder) {
-      console.warn('No matching order found! This might be a data loading timing issue.');
-      console.log('Total allOrders:', allOrders.length);
-      console.log('Total customers:', customers.length);
-    }
-  };
-
   // Table actions based on permissions
   const getActions = () => {
     const defaultActions = [];
@@ -693,7 +675,7 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
         label: "Delete",
         icon: (
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1-1H9a1 1 0 00-1 1v3M4 7h16" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
           </svg>
         ),
         onClick: (appointment: Appointment) => {
@@ -801,6 +783,14 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
     } else if (modalMode === "edit") {
       await handleUpdateAppointment();
     } 
+  };
+
+  const handleEditClick = () => {
+    setIsModalOpen(false);
+    setTimeout(() => {
+      setModalMode("edit");
+      setIsModalOpen(true);
+    }, 100);
   };
 
   const getModalTitle = () => {
@@ -927,216 +917,21 @@ const AppointmentManagement: React.FC<AppointmentManagementProps> = ({
           />
         </div>
 
+        {/* Modal with Separated Form */}
         <SlideModal isOpen={isModalOpen} onClose={closeModal} title={getModalTitle()}>
-          <form onSubmit={handleSubmit} className="p-6 space-y-4">
-            {/* Customer Selection with Enhanced Display - UPDATED */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Customer *</label>
-              <select
-                value={formData.customer_id}
-                onChange={(e) => {
-                  const selectedValue = e.target.value;
-                  setFormData({ 
-                    ...formData, 
-                    customer_id: selectedValue, // Store the full unique identifier (customerId|batchId)
-                    order_id: "" 
-                  });
-                }}
-                className={`w-full px-3 py-2 border rounded-lg ${
-                  formErrors.customer_id ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                } focus:outline-none focus:ring-2`}
-                disabled={modalMode === "view"}
-                required
-              >
-                <option value="">Select Customer</option>
-                {customers.map((customer) => (
-                  <option 
-                    key={customer.unique_key} // Use unique_key for React key
-                    value={`${customer.id}|${customer.batch_measurement_id || 'none'}`} // Pass both customer ID and batch ID
-                  >
-                    {getCustomerDropdownName(customer)}
-                  </option>
-                ))}
-              </select>
-              {formErrors.customer_id && (
-                <p className="mt-1 text-sm text-red-600">{formErrors.customer_id}</p>
-              )}
-            </div>
-
-            {/* Order Selection - Filtered by customer */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Order *</label>
-              <select
-                value={formData.order_id}
-                onChange={(e) => setFormData({ ...formData, order_id: e.target.value })}
-                className={`w-full px-3 py-2 border rounded-lg ${
-                  formErrors.order_id ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                } focus:outline-none focus:ring-2`}
-                disabled={modalMode === "view" || !formData.customer_id}
-                required
-              >
-                <option value="">
-                  {!formData.customer_id ? "Select a customer first" : "Select Order"}
-                </option>
-                {orders.map((order) => (
-                  <option key={order.id} value={order.id}>
-                    {order.order_number}
-                  </option>
-                ))}
-              </select>
-              {formErrors.order_id && (
-                <p className="mt-1 text-sm text-red-600">{formErrors.order_id}</p>
-              )}
-              {formData.customer_id && orders.length === 0 && (
-                <p className="mt-1 text-sm text-amber-600">No orders found for this customer</p>
-              )}
-            </div>
-
-            {/* Rest of the form fields remain the same */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Appointment Type *</label>
-              <select
-                value={formData.appointment_type}
-                onChange={(e) => setFormData({ ...formData, appointment_type: e.target.value as any })}
-                className={`w-full px-3 py-2 border rounded-lg ${
-                  formErrors.appointment_type ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                } focus:outline-none focus:ring-2`}
-                disabled={modalMode === "view"}
-                required
-              >
-                <option value="">Select Type</option>
-                <option value="fitting">Fitting</option>
-                <option value="pickup">Pickup</option>
-              </select>
-              {formErrors.appointment_type && (
-                <p className="mt-1 text-sm text-red-600">{formErrors.appointment_type}</p>
-              )}
-            </div>
-
-            {/* Date and Time */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Date *</label>
-                {modalMode === "view" ? (
-                  <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                    {formData.appointment_date ? 
-                      new Date(formData.appointment_date).toLocaleDateString("en-GB", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric"
-                      }) : 'No date selected'
-                    }
-                  </div>
-                ) : (
-                  <input
-                    type="date"
-                    value={formData.appointment_date}
-                    onChange={(e) => setFormData({ ...formData, appointment_date: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-lg ${
-                      formErrors.appointment_date ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                    } focus:outline-none focus:ring-2`}
-                    required
-                  />
-                )}
-                {formErrors.appointment_date && (
-                  <p className="mt-1 text-sm text-red-600">{formErrors.appointment_date}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Time *</label>
-                {modalMode === "view" ? (
-                  <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                    {formData.appointment_time ? (() => {
-                      const [hours, minutes] = formData.appointment_time.split(":");
-                      const hour = parseInt(hours);
-                      const ampm = hour >= 12 ? "PM" : "AM";
-                      const displayHour = hour % 12 || 12;
-                      return `${displayHour}:${minutes} ${ampm}`;
-                    })() : 'No time selected'}
-                  </div>
-                ) : (
-                  <input
-                    type="time"
-                    value={formData.appointment_time}
-                    onChange={(e) => setFormData({ ...formData, appointment_time: e.target.value })}
-                    className={`w-full px-3 py-2 border rounded-lg ${
-                      formErrors.appointment_time ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                    } focus:outline-none focus:ring-2`}
-                    required
-                  />
-                )}
-                {formErrors.appointment_time && (
-                  <p className="mt-1 text-sm text-red-600">{formErrors.appointment_time}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Notes */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Notes</label>
-              {modalMode === "view" ? (
-                <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 min-h-[80px]">
-                  {formData.notes || 'No notes provided'}
-                </div>
-              ) : (
-                <textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  rows={3}
-                  placeholder="Optional notes about the appointment..."
-                />
-              )}
-            </div>
-
-            {/* Button Section */}
-            <div className="flex justify-end pt-4 gap-3">
-              {modalMode === "view" ? (
-                <>
-                  {permissions.canDelete && (
-                    <Button 
-                      type="button"
-                      onClick={handleDeleteFromView}
-                      className="bg-red-600 hover:bg-red-700 text-white"
-                    >
-                      Delete
-                    </Button>
-                  )}
-                  {permissions.canEdit && (
-                    <Button 
-                      type="button"
-                      onClick={() => {
-                        setIsModalOpen(false);
-                        setTimeout(() => {
-                          setModalMode("edit");
-                          setIsModalOpen(true);
-                        }, 100);
-                      }}
-                      className="bg-blue-600 hover:bg-blue-700"
-                    >
-                      Edit
-                    </Button>
-                  )}
-                </>
-              ) : (
-                <Button 
-                  type="submit" 
-                  className="bg-blue-600 hover:bg-blue-700"
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-                      {modalMode === "create" ? "Scheduling..." : "Updating..."}
-                    </>
-                  ) : (
-                    modalMode === "create" ? "Schedule Appointment" : "Update Appointment"
-                  )}
-                </Button>
-              )}
-            </div>
-          </form>
+          <AppointmentForm
+            formData={formData}
+            setFormData={setFormData}
+            customers={customers}
+            orders={orders}
+            modalMode={modalMode}
+            loading={loading}
+            formErrors={formErrors}
+            onSubmit={handleSubmit}
+            onEditClick={handleEditClick}
+            onDeleteClick={handleDeleteFromView}
+            permissions={permissions}
+          />
         </SlideModal>
 
         {/* Message Modal */}
