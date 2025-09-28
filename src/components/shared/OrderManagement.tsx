@@ -212,15 +212,57 @@ const SingleOrderManagement: React.FC<SingleOrderManagementProps> = ({
     isLoading
   } = useOrderManagement();
 
+const getAvailableSizesForProduct = async (productId: number) => {
+  try {
+    setSizesLoading(true);
+    const availableSizes: string[] = [];
+    
+    console.log('=== DEBUGGING SIZE AVAILABILITY ===');
+    console.log('Product ID:', productId);
+    console.log('SIZE_OPTIONS:', SIZE_OPTIONS);
+    console.log('Measurements object:', measurements);
+    
+    // Check each size to see if measurements exist for this specific product
+    for (const size of SIZE_OPTIONS) {
+      const backendSize = convertSizeToBackend(size);
+      console.log(`Checking size: ${size} -> backend: ${backendSize}`);
+      
+      try {
+        const measurement = await measurements.getProductMeasurementsBySize(productId, backendSize);
+        console.log(`Measurement result for ${backendSize}:`, measurement);
+        console.log(`Type of measurement:`, typeof measurement);
+        console.log(`Is truthy:`, !!measurement);
+        
+        if (measurement) {
+          availableSizes.push(size);
+          console.log(`✓ Size ${size} is available`);
+        } else {
+          console.log(`✗ Size ${size} is NOT available`);
+        }
+      } catch (sizeError) {
+        // Silently handle errors - don't log them as errors since they're expected for non-existent measurements
+        console.log(`Size ${size} not available (expected behavior)`);
+      }
+    }
+    
+    console.log('Final available sizes:', availableSizes);
+    console.log('=== END DEBUG ===');
+    
+    setAvailableSizes(availableSizes);
+    return availableSizes;
+  } catch (error) {
+    console.log('Note: No measurements configured for this product yet');
+    setAvailableSizes([]);
+    return [];
+  } finally {
+    setSizesLoading(false);
+  }
+};
+
+
 const checkMeasurementExists = async (customerId: number, productId: number) => {
   try {
     const measurement = await measurements.getCustomerProductMeasurements(customerId, productId);
-    
-    // Debug logging
-    console.log('Measurement response:', measurement);
-    console.log('Type of response:', typeof measurement);
-    console.log('Is array?', Array.isArray(measurement));
-    console.log('Length if array:', Array.isArray(measurement) ? measurement.length : 'N/A');
     
     // Handle different response types
     if (Array.isArray(measurement)) {
@@ -231,12 +273,11 @@ const checkMeasurementExists = async (customerId: number, productId: number) => 
       return !!measurement;
     }
   } catch (error) {
-    console.error('Error checking measurements:', error);
+    // Expected behavior for non-existent measurements
+    console.log('Customer measurements not found (expected for new customers)');
     return false;
   }
 };
-
-
 
 const checkProductMeasurementsExist = async (productId: number, sizes: string[]) => {
   try {
@@ -246,9 +287,14 @@ const checkProductMeasurementsExist = async (productId: number, sizes: string[])
     for (const size of sizes) {
       // Convert display size (XL) to backend format (extra_large)
       const backendSize = convertSizeToBackend(size);
-      const measurement = await measurements.getProductMeasurementsBySize(productId, backendSize);
-      
-      if (!measurement) {
+      try {
+        const measurement = await measurements.getProductMeasurementsBySize(productId, backendSize);
+        
+        if (!measurement) {
+          missingMeasurements.push(size);
+        }
+      } catch (error) {
+        // Expected behavior for non-existent measurements
         missingMeasurements.push(size);
       }
     }
@@ -258,7 +304,7 @@ const checkProductMeasurementsExist = async (productId: number, sizes: string[])
       missingMeasurements
     };
   } catch (error) {
-    console.error('Error checking product measurements:', error);
+    console.log('Product measurements check failed (expected for unconfigured products)');
     return {
       isValid: false,
       missingMeasurements: sizes // Assume all are missing on error
@@ -296,6 +342,9 @@ const convertSizeToDisplay = (backendSize: string): string => {
   
   return sizeMap[backendSize] || backendSize;
 };
+
+
+
 
   // Tab state
   const [activeTab, setActiveTab] = useState<TabType>('single');
@@ -343,6 +392,8 @@ const [bulkCustomFormData, setBulkCustomFormData] = useState<BulkCustomFormData>
   const [selectedCustomerForBulkProducts, setSelectedCustomerForBulkProducts] = useState<number | null>(null);
   const [bulkProductFilterType, setBulkProductFilterType] = useState<ProductFilterType>(ProductFilterType.DEFAULT);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [availableSizes, setAvailableSizes] = useState<string[]>([]);
+  const [sizesLoading, setSizesLoading] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<{
     order: SingleOrderResponse | BulkOrderDefaultResponse | BulkOrderCustomResponse;
     customerName: string;
@@ -428,7 +479,7 @@ useEffect(() => {
   }
 }, [activeTab, getAllBulkIds]);
 
-// Replace this useEffect in your component
+
 useEffect(() => {
   // Only auto-fill unit price when a DEFAULT product is selected (not custom products)
   if (bulkCustomFormData.productId && 
@@ -450,6 +501,17 @@ useEffect(() => {
     }));
   }
 }, [bulkCustomFormData.productId, bulkProductFilterType, getProductById, modalMode]); 
+
+// Fetch available sizes when product changes in bulk default form
+useEffect(() => {
+  if (bulkDefaultFormData.productId && activeTab === 'default') {
+    getAvailableSizesForProduct(parseInt(bulkDefaultFormData.productId));
+  } else {
+    setAvailableSizes([]);
+  }
+}, [bulkDefaultFormData.productId, activeTab]);
+
+
 
 // Helper function to get display name for delete confirmation
 const getOrderDisplayName = (order: SingleOrderResponse | BulkOrderDefaultResponse | BulkOrderCustomResponse) => {
@@ -492,8 +554,13 @@ const confirmDelete = async () => {
     }
     
     await handleDeleteOrder(orderToDelete.order.order_id, customerIdDisplay);
+    
+    // Close both modals
     setIsDeleteModalOpen(false);
+    setIsModalOpen(false);
+    
     setOrderToDelete(null);
+    setSelectedOrder(null);
   } catch (err) {
     console.error(`Failed to delete order:`, err);
     showErrorMessage('Deletion Failed', 'Failed to delete order. Please try again.');
@@ -534,9 +601,6 @@ const loadOrders = async () => {
     if (activeTab === 'single') {
       if (!formData.customerId) {
         errors.customerId = 'Customer is required';
-      }
-      if (!formData.orderType) {
-        errors.orderType = 'Order type is required';
       }
       if (!formData.productId) {
         errors.productId = 'Product category is required';
@@ -614,17 +678,22 @@ const handleBulkCustomInputChange = (field: keyof BulkCustomFormData, value: str
     setFormErrors(prev => ({ ...prev, [field]: undefined }));
   }
 };
+
+
   // Helper functions for bulk default size quantities
-  const addSizeQuantity = () => {
-    setBulkDefaultFormData(prev => ({
-      ...prev,
-      sizeQuantities: [...prev.sizeQuantities, { size: 'S', quantity: '' }]
-    }));
-    
-    if (formErrors.sizeQuantities) {
-      setFormErrors(prev => ({ ...prev, sizeQuantities: undefined }));
-    }
-  };
+const addSizeQuantity = () => {
+  // Use the first available size, or 'S' as fallback
+  const defaultSize = availableSizes.length > 0 ? availableSizes[0] : 'S';
+  
+  setBulkDefaultFormData(prev => ({
+    ...prev,
+    sizeQuantities: [...prev.sizeQuantities, { size: defaultSize, quantity: '' }]
+  }));
+  
+  if (formErrors.sizeQuantities) {
+    setFormErrors(prev => ({ ...prev, sizeQuantities: undefined }));
+  }
+};
 
   const updateSizeQuantity = (index: number, field: 'size' | 'quantity', value: string) => {
     setBulkDefaultFormData(prev => ({
@@ -752,6 +821,7 @@ const handleBulkCustomInputChange = (field: keyof BulkCustomFormData, value: str
     setIsModalOpen(false);
     setSelectedOrder(null);
     setFormErrors({});
+    setAvailableSizes([]);
   };
 
   // CRUD handlers
@@ -818,6 +888,27 @@ const handleCreateOrder = async () => {
         return;
       }
 
+       if (availableSizes.length === 0) {
+        const product = getProductById(parseInt(bulkDefaultFormData.productId));
+        const productName = product ? product.category_name : 'selected product';
+        showErrorMessage(
+          'No Sizes Available', 
+          `No sizes are configured for ${productName}. Please add product measurements for this product before creating an order.`
+        );
+        return;
+      }
+
+        const invalidSizes = selectedSizes.filter(size => !availableSizes.includes(size));
+        if (invalidSizes.length > 0) {
+          const product = getProductById(parseInt(bulkDefaultFormData.productId));
+          const productName = product ? product.category_name : 'selected product';
+          showErrorMessage(
+            'Invalid Sizes Selected', 
+            `The following sizes are not available for ${productName}: ${invalidSizes.join(', ')}. Please select only available sizes or add product measurements for these sizes.`
+          );
+          return;
+        }
+        
       // Check if product measurements exist for all selected sizes
       const measurementCheck = await checkProductMeasurementsExist(
         parseInt(bulkDefaultFormData.productId), 
@@ -866,19 +957,25 @@ const handleCreateOrder = async () => {
       }
     }
   } catch (error: any) {
-  console.error('Failed to create default order:', error);
-  
-  // Get product name for better error context
-  const product = getProductById(parseInt(bulkDefaultFormData.productId));
-  const productName = product ? product.category_name : 'this product';
-  
-  // Check if it's a size-related error
-  if (error?.message?.toLowerCase().includes('measurements','not','exist')) {
-    showErrorMessage('Invalid Size', `No standard sizes found for ${productName}. Please add available sizes for this product before creating the order.`);
-  } else {
-    showErrorMessage('Creation Failed', `Failed to create  default order for ${productName}. Please try again.`);
+    console.log('Order creation failed:', error);
+    
+    // Enhanced error handling
+    if (activeTab === 'default') {
+      const product = getProductById(parseInt(bulkDefaultFormData.productId));
+      const productName = product ? product.category_name : 'this product';
+      
+      // Check for specific error types
+      if (error?.message?.toLowerCase().includes('measurement') || 
+          error?.message?.toLowerCase().includes('size') ||
+          error?.response?.data?.message?.toLowerCase().includes('measurement')) {
+        showErrorMessage('Measurements Missing', `Product measurements are required for ${productName}. Please configure product measurements before creating the order.`);
+      } else {
+        showErrorMessage('Creation Failed', `Failed to create default order for ${productName}. Please ensure all product measurements are properly configured.`);
+      }
+    } else {
+      showErrorMessage('Creation Failed', 'Failed to create order. Please check all required fields and try again.');
+    }
   }
-}
 };
 
   const handleUpdateOrder = async () => {
@@ -1589,45 +1686,13 @@ const getLoadingState = () => {
                     <p className="mt-1 text-sm text-red-600">{formErrors.customerId}</p>
                   )}
                 </div>
-                {/* Order Type */}
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Order Type *</label>
-                    <select
-                      value={formData.orderType}
-                      onChange={(e) => {
-                        const newOrderType = e.target.value;
-                        handleInputChange('orderType', newOrderType);
-                        
-                        // If bulk is selected, switch to bulk tab and close modal
-                        if (newOrderType === 'bulk') {
-                          // Close current modal
-                          setIsModalOpen(false);
-                          
-                          // Switch to bulk tab
-                          setTimeout(() => {
-                            setActiveTab('bulk');
-                            // Open the bulk form modal after a short delay
-                            setTimeout(() => {
-                              openCreateModal();
-                            }, 100);
-                          }, 100);
-                        }
-                      }}
-                      className={`w-full px-3 py-2 border rounded-lg ${
-                        formErrors.orderType ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                      } focus:outline-none focus:ring-2`}
-                      disabled={modalMode === "view"}
-                      required
-                    >
-                      <option value="">Select Order Type</option>
-                      <option value="single">Individual</option>
-                      <option value="bulk">Corporate</option>
-                      
-                    </select>
-                    {formErrors.orderType && (
-                      <p className="mt-1 text-sm text-red-600">{formErrors.orderType}</p>
-                    )}
+                {/* Order Type - VIEW ONLY */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Order Type</label>
+                  <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                    {formData.orderType === 'single' ? 'Individual' : 'Corporate'}
                   </div>
+                </div>
 
                 {/* Product Category */}
                 {/* Product Type Selection - SINGLE ORDER ONLY */}
@@ -1975,45 +2040,12 @@ const getLoadingState = () => {
             )}
           </div>
          
-
-            {/* Order Type */}
+           {/* Order Type - VIEW ONLY */}
             <div>
-              <label className="block text-sm font-medium mb-2">Order Type *</label>
-              <select
-                value={bulkCustomFormData.orderType}
-                onChange={(e) => {
-                  const newOrderType = e.target.value;
-                  handleBulkCustomInputChange('orderType', newOrderType);
-                  
-                  // If single is selected, switch to single tab and close modal
-                  if (newOrderType === 'single') {
-                    // Close current modal
-                    setIsModalOpen(false);
-                    
-                    // Switch to single tab
-                    setTimeout(() => {
-                      setActiveTab('single');
-                      // Open the single form modal after a short delay
-                      setTimeout(() => {
-                        openCreateModal();
-                      }, 100);
-                    }, 100);
-                  }
-                }}
-                className={`w-full px-3 py-2 border rounded-lg ${
-                  formErrors.orderType ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                } focus:outline-none focus:ring-2`}
-                disabled={modalMode === "view"}
-                required
-              >
-                <option value="">Select Order Type</option>
-                <option value="bulk">Corporate</option>
-                <option value="single">Individual</option>
-
-              </select>
-              {formErrors.orderType && (
-                <p className="mt-1 text-sm text-red-600">{formErrors.orderType}</p>
-              )}
+              <label className="block text-sm font-medium mb-2">Order Type</label>
+              <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                {bulkCustomFormData.orderType === 'bulk' ? 'Corporate' : 'Individual'}
+              </div>
             </div>
 
             {/* Quantity */}
@@ -2206,37 +2238,58 @@ const getLoadingState = () => {
                   )}
                 </div>
 
-                {/* Size and Quantity Section */}
-                <div>
-           <div className="grid grid-cols-2 gap-4 mb-2">
-            <label className="block text-sm font-medium">Size *</label>
-            <label className="block text-sm font-medium -ml-7 ">Quantity *</label>
-          </div>
-                            
-                  <div className="space-y-3">
-                    {bulkDefaultFormData.sizeQuantities.map((sizeQuantity, index) => (
-                     <div key={index} className="flex gap-2 w-full">
-                      <select
+           
+               {/* Size and Quantity Section */}
+                  <div>
+                    <div className="grid grid-cols-2 gap-4 mb-2">
+                      <label className="block text-sm font-medium">Size *</label>
+                      <label className="block text-sm font-medium -ml-7">Quantity *</label>
+                    </div>
+                    
+                    {/* Show loading state */}
+                    {sizesLoading && (
+                      <div className="text-sm text-blue-600 mb-2">Loading available sizes...</div>
+                    )}
+                    
+                    {/* Show message if no sizes available */}
+                    {!sizesLoading && bulkDefaultFormData.productId && availableSizes.length === 0 && (
+                      <div className="text-sm text-red-600 mb-2">
+                        No sizes available for this product. Please add product measurements first.
+                      </div>
+                    )}
+                    
+                    <div className="space-y-3">
+                      {bulkDefaultFormData.sizeQuantities.map((sizeQuantity, index) => (
+                        <div key={index} className="flex gap-2 w-full">
+                        <select
                           value={sizeQuantity.size}
                           onChange={(e) => updateSizeQuantity(index, 'size', e.target.value)}
                           className="w-1/2 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          disabled={modalMode === "view"}
+                          disabled={modalMode === "view" || sizesLoading}
                         >
-                          {SIZE_OPTIONS.map((size) => (
-                            <option key={size} value={size}>
-                              {size}
+                          {availableSizes.length > 0 ? (
+                            // When sizes are available: show only the actual sizes, no "Select Size" option
+                            availableSizes.map((size) => (
+                              <option key={size} value={size}>
+                                {size}
+                              </option>
+                            ))
+                          ) : (
+                            // When no sizes or loading: show "Select Size" option
+                            <option value="">
+                              {sizesLoading ? "Loading sizes..." : "Select Size"}
                             </option>
-                          ))}
+                          )}
                         </select>
                         <input
-                          type="number"
-                          min="0"
-                          value={sizeQuantity.quantity}
-                          onChange={(e) => updateSizeQuantity(index, 'quantity', e.target.value)}
-                          className="w-1/2 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="Enter quantity"
-                          readOnly={modalMode === "view"}
-                         />
+                            type="number"
+                            min="0"
+                            value={sizeQuantity.quantity}
+                            onChange={(e) => updateSizeQuantity(index, 'quantity', e.target.value)}
+                            className="w-1/2 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Enter quantity"
+                            readOnly={modalMode === "view"}
+                          />
                           {modalMode !== "view" && (
                             <Button
                               type="button"
@@ -2246,32 +2299,32 @@ const getLoadingState = () => {
                               <Trash2 className="w-4 h-4" />
                             </Button>
                           )}
-                      </div>
-                    ))}
+                        </div>
+                      ))}
+                      
+                      {modalMode !== "view" && availableSizes.length > 0 && (
+                        <Button
+                          type="button"
+                          onClick={addSizeQuantity}
+                          className="bg-blue-600 hover:bg-blue-700 text-white w-full flex items-center justify-center mt-3"
+                          disabled={sizesLoading}
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Add Size
+                        </Button>
+                      )}
+                      
+                      {bulkDefaultFormData.sizeQuantities.length === 0 && modalMode === "view" && (
+                        <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                          No size quantities specified
+                        </div>
+                      )}
+                    </div>
                     
-                    {modalMode !== "view" && (
-                      <Button
-                        type="button"
-                        onClick={addSizeQuantity}
-                        className="bg-blue-600 hover:bg-blue-700 text-white w-full flex items-center justify-center mt-3"
-                      >
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add
-                      </Button>
-                    )}
-                    
-                    {bulkDefaultFormData.sizeQuantities.length === 0 && modalMode === "view" && (
-                      <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                        No size quantities specified
-                      </div>
+                    {formErrors.sizeQuantities && (
+                      <p className="mt-1 text-sm text-red-600">{formErrors.sizeQuantities}</p>
                     )}
                   </div>
-                  
-                  {formErrors.sizeQuantities && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.sizeQuantities}</p>
-                  )}
-                </div>
-
                 {/* Unit Price */}
                <div>
                 <label className="block text-sm font-medium mb-2">Unit Price *</label>
@@ -2390,62 +2443,57 @@ const getLoadingState = () => {
 
             {/* Button Section */}
             <div className="flex justify-end pt-4 gap-3">
-              {modalMode === "view" ? (
-                <>
-                 {shouldShowDeleteButton() && (
-                  <Button 
-                    type="button"
-                    onClick={() => {
-                      if (!selectedOrder) return;
-                      
-                      // Close the view modal first
-                      setIsModalOpen(false);
-                      
-                      // Set up the delete modal with the selected order
-                      setTimeout(() => {
-                        const customerName = getOrderDisplayName(selectedOrder);
-                        setOrderToDelete({ order: selectedOrder, customerName });
-                        setIsDeleteModalOpen(true);
-                      }, 100);
-                    }}
-                    className="bg-red-600 hover:bg-red-700 text-white"
-                  >
-                    Delete
-                  </Button>
-                )}
-                  {shouldShowEditButton() && (
-                    <Button 
-                      type="button"
-                      onClick={() => {
-                        setIsModalOpen(false);
-                        setTimeout(() => {
-                          setModalMode("edit");
-                          setIsModalOpen(true);
-                        }, 100);
-                      }}
-                      className="bg-blue-600 hover:bg-blue-700"
-                    >
-                      Edit
-                    </Button>
-                  )}
-                </>
-              ) : (
+          {modalMode === "view" ? (
+            <>
+              {shouldShowDeleteButton() && (
                 <Button 
-                  type="submit" 
-                  className="bg-blue-600 hover:bg-blue-700"
-                  disabled={getLoadingState() || isLoading}
+                  type="button"
+                  onClick={() => {
+                    if (!selectedOrder) return;
+                    
+                    // Keep the view modal open, just show the delete confirmation on top
+                    const customerName = getOrderDisplayName(selectedOrder);
+                    setOrderToDelete({ order: selectedOrder, customerName });
+                    setIsDeleteModalOpen(true);
+                  }}
+                  className="bg-red-600 hover:bg-red-700 text-white"
                 >
-                  {getLoadingState() ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-                      {modalMode === "create" ? "Creating..." : "Updating..."}
-                    </>
-                  ) : (
-                    modalMode === "create" ? "Create Order" : "Update Order"
-                  )}
+                  Delete
                 </Button>
               )}
-            </div>
+              {shouldShowEditButton() && (
+                <Button 
+                  type="button"
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setTimeout(() => {
+                      setModalMode("edit");
+                      setIsModalOpen(true);
+                    }, 100);
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Edit
+                </Button>
+              )}
+            </>
+          ) : (
+            <Button 
+              type="submit" 
+              className="bg-blue-600 hover:bg-blue-700"
+              disabled={getLoadingState() || isLoading}
+            >
+              {getLoadingState() ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+                  {modalMode === "create" ? "Creating..." : "Updating..."}
+                </>
+              ) : (
+                modalMode === "create" ? "Create Order" : "Update Order"
+              )}
+            </Button>
+          )}
+        </div>
           </form>
         </SlideModal>
 
@@ -2460,61 +2508,43 @@ const getLoadingState = () => {
 
         {/* Delete Confirmation Modal */}
         {isDeleteModalOpen && (
-          <div className="fixed inset-0 z-50 overflow-y-auto">
-            <div 
-              className="fixed inset-0 bg-blue-50/70 bg-opacity-50 transition-opacity"
-              onClick={() => {
-                setIsDeleteModalOpen(false);
-                setOrderToDelete(null);
-              }}
-            />
-            <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-              <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">
-                &#8203;
-              </span>
-              <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full relative">
-                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                  <div className="sm:flex sm:items-start">
-                    <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                      <Trash2 className="h-6 w-6 text-red-600" />
-                    </div>
-                    <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                      <h3 className="text-lg leading-6 font-medium text-gray-900">
-                        Delete Order
-                      </h3>
-                      <div className="mt-2">
-                        <p className="text-sm text-gray-500">
-                          Are you sure you want to delete the order for "{orderToDelete ? orderToDelete.customerName : 'this customer'}"? This action cannot be undone.
-                        </p>
-                      </div>
-                    </div>
+          <div className="fixed inset-0 bg-blue-50/70 bg-opacity-50 flex items-center justify-center z-[10000]">
+            <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
+              <div className="p-6">
+                <div className="flex items-center mb-4">
+                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                    <Trash2 className="h-6 w-6 text-red-600" />
                   </div>
+                  <h3 className="text-lg font-semibold text-gray-900">Delete Order</h3>
                 </div>
-                <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                  <button
-                    type="button"
-                    onClick={confirmDelete}
-                    disabled={getLoadingState()}
-                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed sm:ml-3 sm:w-auto sm:text-sm"
-                  >
-                    {getLoadingState() ? 'Deleting...' : 'Delete'}
-                  </button>
+                <p className="text-gray-600 mb-6">
+                  Are you sure you want to delete the order for "{orderToDelete ? orderToDelete.customerName : 'this customer'}"? This action cannot be undone.
+                </p>
+                <div className="flex justify-end space-x-3">
                   <button
                     type="button"
                     onClick={() => {
                       setIsDeleteModalOpen(false);
                       setOrderToDelete(null);
                     }}
-                    className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                    className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
                   >
                     Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmDelete}
+                    disabled={getLoadingState()}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {getLoadingState() ? 'Deleting...' : 'Delete'}
                   </button>
                 </div>
               </div>
             </div>
           </div>
         )}
-      </main>
+              </main>
     </div>
   );
 };

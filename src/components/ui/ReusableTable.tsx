@@ -44,6 +44,9 @@ const ReusableTable: React.FC<ReusableTableProps> = ({
   const buttonRefs = useRef<{ [key: string]: HTMLButtonElement }>({});
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
+  // Determine if we should show the actions column
+  const showActionsColumn = actions && actions.length > 0;
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -86,7 +89,7 @@ const ReusableTable: React.FC<ReusableTableProps> = ({
     }
   };
 
-  // Generate grid template with column widths
+  // Generate grid template with column widths - Updated to handle actions column conditionally
   const generateGridTemplate = () => {
     const totalColumns = columns.length;
     
@@ -101,13 +104,22 @@ const ReusableTable: React.FC<ReusableTableProps> = ({
         return `minmax(${minColumnWidth}, 1fr)`;
       });
       
-      return [...columnWidths, '140px'].join(' '); // Fixed width for actions
+      // Only add actions column width if we're showing actions
+      return showActionsColumn 
+        ? [...columnWidths, '140px'].join(' ')
+        : columnWidths.join(' ');
     } else {
-      // Original percentage-based approach but with more space
-      const availableWidth = totalColumns > 0 ? `${(100 - 12) / totalColumns}%` : '1fr'; // Reserve 12% for actions
-      let template = columns.map(() => availableWidth).join(' ');
-      template += ' 12%'; // Fixed percentage for actions
-      return template;
+      // Original percentage-based approach but with conditional actions column
+      if (showActionsColumn) {
+        const availableWidth = totalColumns > 0 ? `${(100 - 12) / totalColumns}%` : '1fr'; // Reserve 12% for actions
+        let template = columns.map(() => availableWidth).join(' ');
+        template += ' 12%'; // Fixed percentage for actions
+        return template;
+      } else {
+        // No actions column - distribute full width among data columns
+        const columnWidth = totalColumns > 0 ? `${100 / totalColumns}%` : '1fr';
+        return columns.map(() => columnWidth).join(' ');
+      }
     }
   };
 
@@ -152,7 +164,7 @@ const getDefaultActionColor = (label: string) => {
         }}
       >
         <div className="min-w-max">
-          {/* Header Row - ALWAYS RENDERED */}
+          {/* Header Row - Conditionally render Actions column */}
           <div 
             className="grid bg-gray-50 min-w-max"
             style={{ gridTemplateColumns: gridTemplate }}
@@ -165,14 +177,16 @@ const getDefaultActionColor = (label: string) => {
                 {col.label}
               </div>
             ))}
-            <div className={`${paddingClasses} text-center text-sm font-bold text-gray-500 uppercase tracking-wider`}>
-              Actions
-            </div>
+            {showActionsColumn && (
+              <div className={`${paddingClasses} text-center text-sm font-bold text-gray-500 uppercase tracking-wider`}>
+                Actions
+              </div>
+            )}
           </div>
 
           {/* Data Rows or Empty Message */}
           {data.length > 0 ? (
-            // Data Rows
+            // Data Rows - Conditionally render Actions column
             data.map((row, index) => {
               const rowId = row.id || `row_${index}`;
               return (
@@ -199,20 +213,22 @@ const getDefaultActionColor = (label: string) => {
                     </div>
                   ))}
 
-                  <div className={`${paddingClasses} text-center bg-white`}>
-                    <button
-                      ref={(el) => {
-                        if (el) buttonRefs.current[rowId] = el;
-                      }}
-                      onClick={() => toggleDropdown(rowId, row)}
-                      className="p-2 rounded-full hover:bg-gray-100 transition-colors duration-150 ease-in-out focus:outline-none focus:ring-0 focus:border-none focus:shadow-none"
-                      aria-label="More options"
-                    >
-                      <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                      </svg>
-                    </button>
-                  </div>
+                  {showActionsColumn && (
+                    <div className={`${paddingClasses} text-center bg-white`}>
+                      <button
+                        ref={(el) => {
+                          if (el) buttonRefs.current[rowId] = el;
+                        }}
+                        onClick={() => toggleDropdown(rowId, row)}
+                        className="p-2 rounded-full hover:bg-gray-100 transition-colors duration-150 ease-in-out focus:outline-none focus:ring-0 focus:border-none focus:shadow-none"
+                        aria-label="More options"
+                      >
+                        <svg className="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })
@@ -239,8 +255,8 @@ const getDefaultActionColor = (label: string) => {
       </div>
     )}
 
-      {/* Dropdown Menu */}
-      {activeDropdown && (
+      {/* Dropdown Menu - Only render if there are actions */}
+      {activeDropdown && showActionsColumn && (
         <div
           ref={dropdownRef}
           className="fixed w-32 bg-white rounded-lg shadow-lg border border-gray-200 z-50 animate-in slide-in-from-top-2 duration-200"

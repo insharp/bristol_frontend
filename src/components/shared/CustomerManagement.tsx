@@ -6,6 +6,7 @@ import { useCustomers, Customer, CustomerType } from "@/app/hooks/useCustomers";
 import MessageModal from "@/components/ui/ErrorMessageModal"
 import CustomerTypeFilter from "@/components/Filter/CustomerTypeFilter";
 import SlideModal from "@/components/ui/SlideModal";
+import { createPortal } from "react-dom";
 
 
 interface CustomerManagementProps {
@@ -41,9 +42,10 @@ const DeleteConfirmationModal = ({
 }) => {
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-blue-50/70 bg-opacity-50 flex items-center justify-center z-60">
-      <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full relative">
+  const modalContent = (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center">
+      <div className="fixed inset-0 bg-blue-50/70 bg-opacity-50" />
+      <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full relative z-[10001]">
         <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
           <div className="sm:flex sm:items-start">
             <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
@@ -94,8 +96,11 @@ const DeleteConfirmationModal = ({
       </div>
     </div>
   );
-};
 
+  return typeof window !== "undefined" 
+    ? createPortal(modalContent, document.body)
+    : null;
+};
 const CustomerManagement: React.FC<CustomerManagementProps> = ({
   title = "Customers",
   apiEndpoint,
@@ -391,9 +396,16 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
       render?: (value: any, row: any) => React.ReactNode;
       width?: string;
       minWidth?: string;
-    }> = [
-      { key: "id", label: "Customer ID", width: "120px" },
-    ];
+    }> = [];
+
+    if (selectedType === "individual") {
+      baseColumns.push({ key: "id", label: "Customer ID", width: "120px" });
+    } else if (selectedType === "corporate") {
+      baseColumns.push({ key: "id", label: "Company ID", width: "120px" });
+    } else if (selectedType === "all") {
+      baseColumns.push({ key: "id", label: "ID", width: "120px" });
+    }
+
 
     if (selectedType === "individual" || selectedType === "all") {
       baseColumns.push({ key: "customer_name", label: "Customer Name", minWidth: "150px" });
@@ -407,27 +419,8 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
     }
 
     baseColumns.push(
-      { key: "email", label: "Email" },
-      { key: "phone_number", label: "Phone Number"},
-      {
-        key: "customer_type",
-        label: "Type",
-        render: (value: any) => {
-          const typeColors: Record<string, string> = {
-            individual: "bg-blue-100 text-blue-800",
-            corporate: "bg-purple-100 text-purple-800"
-          };
-          const typeLabels: Record<string, string> = {
-            individual: "Individual",
-            corporate: "Corporate"
-          };
-          return (
-            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${typeColors[value] || "bg-gray-100 text-gray-800"}`}>
-              {typeLabels[value] || value}
-            </span>
-          );
-        },
-      },
+      { key: "phone_number", label: "Contact Number"},
+      { key: "email", label: "Email Address" },
       // Show delivery address for ALL customer types
       { 
         key: "delivery_address", 
@@ -782,6 +775,23 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
 
             {/* Common Fields */}
             <div>
+              <label className="block text-sm font-medium mb-2">Contact Number *</label>
+              <input
+                type="tel"
+                placeholder="Enter Phone number"
+                value={formData.phone_number}
+                onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
+                className={`w-full px-3 py-2 border rounded-lg ${
+                  formErrors.phone_number ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                } focus:outline-none focus:ring-2`}
+                readOnly={modalMode === "view"}
+                required
+              />
+              {formErrors.phone_number && (
+                <p className="mt-1 text-sm text-red-600">{formErrors.phone_number}</p>
+              )}
+            </div>
+             <div>
               <label className="block text-sm font-medium mb-2">Email *</label>
               <input
                 type="email"
@@ -796,24 +806,6 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
               />
               {formErrors.email && (
                 <p className="mt-1 text-sm text-red-600">{formErrors.email}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Phone Number *</label>
-              <input
-                type="tel"
-                placeholder="Enter Phone number"
-                value={formData.phone_number}
-                onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
-                className={`w-full px-3 py-2 border rounded-lg ${
-                  formErrors.phone_number ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                } focus:outline-none focus:ring-2`}
-                readOnly={modalMode === "view"}
-                required
-              />
-              {formErrors.phone_number && (
-                <p className="mt-1 text-sm text-red-600">{formErrors.phone_number}</p>
               )}
             </div>
 

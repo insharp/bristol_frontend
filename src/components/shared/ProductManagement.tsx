@@ -5,6 +5,7 @@ import ReusableTable from "@/components/ui/ReusableTable";
 import SlideModal from "@/components/ui/SlideModal";
 import { useProducts, Product } from "@/app/hooks/useProduct";
 import { useCustomers, Customer } from "@/app/hooks/useCustomers";
+import { createPortal } from "react-dom";
 
 interface ProductManagementProps {
   title?: string;
@@ -96,9 +97,10 @@ const DeleteConfirmationModal = ({
 }) => {
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-blue-50/70 bg-opacity-50 flex items-center justify-center z-60">
-      <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full relative">
+  const modalContent = (
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center">
+      <div className="fixed inset-0 bg-blue-50/70 bg-opacity-50" />
+      <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full relative z-[10001]">
         <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
           <div className="sm:flex sm:items-start">
             <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
@@ -137,18 +139,22 @@ const DeleteConfirmationModal = ({
               'Delete'
             )}
           </button>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={loading}
-            className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Cancel
-          </button>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Cancel
+            </button>
         </div>
       </div>
     </div>
   );
+
+  return typeof window !== "undefined" 
+    ? createPortal(modalContent, document.body)
+    : null;
 };
 
 const ProductManagement: React.FC<ProductManagementProps> = ({
