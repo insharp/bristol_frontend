@@ -51,6 +51,9 @@ const getCustomerDropdownName = (customer: any) => {
   return baseName;
 };
 
+
+const today = new Date().toISOString().split('T')[0];
+
 const AppointmentForm: React.FC<AppointmentFormProps> = ({
   formData,
   setFormData,
@@ -169,6 +172,7 @@ const AppointmentForm: React.FC<AppointmentFormProps> = ({
               type="date"
               value={formData.appointment_date}
               onChange={(e) => setFormData({ ...formData, appointment_date: e.target.value })}
+              min={modalMode === "create" ? today : undefined}
               className={`w-full px-3 py-2 border rounded-lg ${
                 formErrors.appointment_date ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
               } focus:outline-none focus:ring-2`}

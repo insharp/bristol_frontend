@@ -122,10 +122,11 @@ const DateRangePicker = ({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Start Date</label>
-              <input
+             <input
                 type="date"
                 value={tempStartDate}
                 onChange={(e) => setTempStartDate(e.target.value)}
+                max={new Date().toISOString().split('T')[0]} // Prevent future dates
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
               />
             </div>
@@ -135,6 +136,7 @@ const DateRangePicker = ({
                 type="date"
                 value={tempEndDate}
                 onChange={(e) => setTempEndDate(e.target.value)}
+                max={new Date().toISOString().split('T')[0]} // Prevent future dates
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
               />
             </div>
@@ -548,6 +550,7 @@ const MessageModal = ({
   );
 };
 
+
 // Delete Confirmation Modal
 const DeleteConfirmationModal = ({
   isOpen,
@@ -565,8 +568,8 @@ const DeleteConfirmationModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-blue-50/70 bg-opacity-50 flex items-center justify-center z-60">
-      <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-xl max-w-lg w-full mx-4 border border-white/20">
+    <div className="fixed inset-0 bg-blue-50/70 bg-opacity-50 flex items-center justify-center z-[10000]">
+      <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-xl max-w-lg w-full mx-4 border border-white/20 relative z-[10001]">
         <div className="p-6">
           <div className="flex items-start">
             <div className="flex-shrink-0">
@@ -584,13 +587,14 @@ const DeleteConfirmationModal = ({
             </div>
           </div>
           <div className="flex justify-end mt-6 gap-3">
-            <Button
-              onClick={onClose}
-              disabled={loading}
-              className="bg-gray-300 text-gray-700 hover:bg-gray-400"
-            >
-              Cancel
-            </Button>
+            <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Cancel
+          </button>
             <Button
               onClick={onConfirm}
               disabled={loading}
@@ -1479,22 +1483,17 @@ const CashBookManagement: React.FC<CashBookManagementProps> = ({
     <SlideModal isOpen={isModalOpen} onClose={closeModal} title={getModalTitle()}>
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
         {/* Date field */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Date *</label>
-          <input
-            type="date"
-            value={formData.transaction_date}
-            onChange={(e) => setFormData({ ...formData, transaction_date: e.target.value })}
-            className={`w-full px-3 py-2 border rounded-md ${
-              formErrors.transaction_date ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-            } focus:outline-none focus:ring-2`}
-            readOnly={modalMode === "view"}
-            required
-          />
-          {formErrors.transaction_date && (
-            <p className="mt-1 text-sm text-red-600">{formErrors.transaction_date}</p>
-          )}
-        </div>
+       <input
+        type="date"
+        value={formData.transaction_date}
+        onChange={(e) => setFormData({ ...formData, transaction_date: e.target.value })}
+        max={new Date().toISOString().split('T')[0]} // Prevent future dates
+        className={`w-full px-3 py-2 border rounded-md ${
+          formErrors.transaction_date ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+        } focus:outline-none focus:ring-2`}
+        readOnly={modalMode === "view"}
+        required
+      />
 
         {/* Amount field */}
         <div>
