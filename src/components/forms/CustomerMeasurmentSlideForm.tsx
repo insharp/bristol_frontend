@@ -357,16 +357,10 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
   };
 
   const canSubmit = () => {
-    if (isDisabled) return false;
-    if (submitting) return false;
-    if (loadingMeasurementFields) return false;
-    if (formData.product_id && measurementFields.length === 0) return false;
-    
-    // CRITICAL: Corporate measurements require at least one employee
-    if (filterType === 'corporate' && employees.length === 0) return false;
-    
-    return true;
-  };
+  // Only disable if actively submitting
+  if (submitting) return false;
+  return true;
+};
 
   if (!isOpen) return null;
 
@@ -654,7 +648,7 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={!canSubmit()}
+                  disabled={submitting}
                   onClick={handleSubmit}
                   className={`flex-1 font-medium text-sm py-2 rounded-md ${
                     canSubmit()
