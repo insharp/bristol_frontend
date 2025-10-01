@@ -3,7 +3,6 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
-  --back:red
 }
 
 @theme inline {
@@ -13,11 +12,138 @@
   --font-mono: var(--font-geist-mono);
 }
 
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+  @apply font-sans;
+}
+
+/* Fix input styling inconsistencies */
+input[type="text"],
+input[type="number"], 
+input[type="email"],
+input[type="password"],
+select,
+textarea {
+  background-color: white !important;
+  color: black !important;
+  border: 1px solid #d1d5db !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  color-scheme: light !important;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="email"]:focus, 
+input[type="password"]:focus,
+select:focus,
+textarea:focus {
+  background-color: white !important;
+  color: black !important;
+  border-color: #3b82f6 !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5) !important;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background-color: #f9fafb !important;
+  color: #6b7280 !important;
+}
+
+* {
+  color-scheme: light !important;
+}
+
+html {
+  color-scheme: light !important;
+}
+
+/* Override Tailwind's built-in dark mode */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #ffffff !important;
+    --foreground: #171717 !important;
   }
+  
+  html {
+    --background: #ffffff !important;
+    --foreground: #171717 !important;
+  }
+}
+
+/* Force light mode regardless of system preferences */
+html, body {
+  background: #ffffff !important;
+  color: #171717 !important;
+}
+
+/* Firefox-specific scrollbar styling */
+html {
+  scrollbar-width: auto !important;
+  scrollbar-color: #6b7280 #f3f4f6 !important;
+  overflow: auto !important;
+}
+
+body {
+  scrollbar-width: auto !important;
+  scrollbar-color: #6b7280 #f3f4f6 !important;
+  overflow: auto !important;
+}
+
+/* Apply to all scrollable elements */
+* {
+  scrollbar-width: auto !important;
+  scrollbar-color: #6b7280 #f3f4f6 !important;
+}
+
+/* For specific containers that need scrollbars */
+div, section, main, table, .overflow-auto, .overflow-x-auto, .overflow-y-auto {
+  scrollbar-width: auto !important;
+  scrollbar-color: #6b7280 #f3f4f6 !important;
+}
+
+/* Webkit browsers (Chrome, Safari, Edge) - match Firefox appearance */
+::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f3f4f6;
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #6b7280;
+  border-radius: 0;
+  border: 1px solid #d1d5db;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
+}
+
+::-webkit-scrollbar-corner {
+  background: #f3f4f6;
+}
+
+/* For horizontal scrollbars */@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
 body {
@@ -25,4 +151,129 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
   @apply font-sans;
+}
+
+/* Fix input styling inconsistencies */
+input[type="text"],
+input[type="number"], 
+input[type="email"],
+input[type="password"],
+select,
+textarea {
+  background-color: white !important;
+  color: black !important;
+  border: 1px solid #d1d5db !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  appearance: none !important;
+  color-scheme: light !important;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="email"]:focus, 
+input[type="password"]:focus,
+select:focus,
+textarea:focus {
+  background-color: white !important;
+  color: black !important;
+  border-color: #3b82f6 !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5) !important;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background-color: #f9fafb !important;
+  color: #6b7280 !important;
+}
+
+* {
+  color-scheme: light !important;
+}
+
+html {
+  color-scheme: light !important;
+}
+
+/* Override Tailwind's built-in dark mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #ffffff !important;
+    --foreground: #171717 !important;
+  }
+  
+  html {
+    --background: #ffffff !important;
+    --foreground: #171717 !important;
+  }
+}
+
+/* Force light mode regardless of system preferences */
+html, body {
+  background: #ffffff !important;
+  color: #171717 !important;
+}
+
+/* Universal scrollbar styling - works for Firefox and fallback for others */
+html {
+  scrollbar-width: auto;
+  scrollbar-color: #9ca3af #e5e7eb;
+}
+
+* {
+  scrollbar-width: auto;
+  scrollbar-color: #9ca3af #e5e7eb;
+}
+
+/* Webkit browsers (Chrome, Safari, Edge, new Opera) */
+::-webkit-scrollbar {
+  width: 17px;
+  height: 17px;
+}
+
+::-webkit-scrollbar-track {
+  background: #e5e7eb;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border: 1px solid #d1d5db;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+::-webkit-scrollbar-corner {
+  background: #e5e7eb;
+}
+
+/* Force scrollbars to appear when content overflows */
+.overflow-auto,
+.overflow-x-auto,
+.overflow-y-auto {
+  scrollbar-width: auto;
+  scrollbar-color: #9ca3af #e5e7eb;
+}
+
+/* Specific targeting for table containers and data grids */
+table,
+.table-container,
+[role="grid"],
+[role="table"] {
+  scrollbar-width: auto;
+  scrollbar-color: #9ca3af #e5e7eb;
+}
+::-webkit-scrollbar:horizontal {
+  height: 16px;
+}
+
+
+@layer utilities {
+  input[type="password"]::-ms-reveal,
+  input[type="password"]::-ms-clear {
+    display: none;
+  }
 }

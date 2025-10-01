@@ -121,10 +121,9 @@ const ProductMeasurementComponent: React.FC<ProductMeasurementProps> = ({
   const [filteredMeasurements, setFilteredMeasurements] = useState<ProductMeasurement[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Modal states
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  // Single modal with mode switching (like MeasurementFieldManagement)
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<"create" | "edit" | "view">("create");
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   
   // Selected item
@@ -186,19 +185,22 @@ const ProductMeasurementComponent: React.FC<ProductMeasurementProps> = ({
   const handleAdd = () => {
     if (!permissions.canCreate) return;
     setSelectedMeasurement(null);
-    setIsAddModalOpen(true);
+    setModalMode("create");
+    setIsModalOpen(true);
   };
 
   const handleView = (measurement: ProductMeasurement) => {
     if (!permissions.canView) return;
     setSelectedMeasurement(measurement);
-    setIsViewModalOpen(true);
+    setModalMode("view");
+    setIsModalOpen(true);
   };
 
   const handleEdit = (measurement: ProductMeasurement) => {
     if (!permissions.canEdit) return;
     setSelectedMeasurement(measurement);
-    setIsEditModalOpen(true);
+    setModalMode("edit");
+    setIsModalOpen(true);
   };
 
   const handleDelete = (measurement: ProductMeasurement) => {
@@ -207,61 +209,125 @@ const ProductMeasurementComponent: React.FC<ProductMeasurementProps> = ({
     setIsDeleteModalOpen(true);
   };
 
+  // Updated to just switch mode (like MeasurementFieldManagement)
   const handleEditFromView = () => {
     if (!permissions.canEdit || !selectedMeasurement) return;
-    setIsViewModalOpen(false);
-    setTimeout(() => {
-      setIsEditModalOpen(true);
-    }, 100);
+    setModalMode("edit");
+    // Don't close the modal, just switch mode
   };
 
-    const handleDeleteFromView = () => {
-      if (!permissions.canDelete || !selectedMeasurement) return;
+  const handleDeleteFromView = () => {
+    if (!permissions.canDelete || !selectedMeasurement) return;
+    // Keep the view modal open, just show the delete confirmation on top
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+  if (!selectedMeasurement) return;
+
+  try {
+    await deleteProductMeasurement(selectedMeasurement.product_id, selectedMeasurement.size);
+    await loadData();
+    
+    setIsDeleteModalOpen(false);
+    setIsModalOpen(false);
+    
+    const measurementName = `${selectedMeasurement.product_name} (Size: ${formatSize(selectedMeasurement.size)})`;
+    setSelectedMeasurement(null);
+    showSuccessMessage('Success!', `Measurement for ${measurementName} deleted successfully!`);
+    
+  } catch (error: any) {
+    console.error('Delete error:', error);
+    
+    setIsDeleteModalOpen(false);
+    setSelectedMeasurement(null);
+    
+    const measurementName = `${selectedMeasurement.product_name} (Size: ${formatSize(selectedMeasurement.size)})`;
+    
+    // Handle constraint errors (same pattern as CustomerMeasurement)
+    if ((error instanceof TypeError && error.message === 'Failed to fetch') || 
+        error.isConstraintError || 
+        (error.message && error.message.includes('Foreign key constraint violation'))) {
+      setTimeout(() => {
+        showErrorMessage(
+          'Cannot Delete Measurement',
+          `Cannot delete this product measurement for "${measurementName}" because there are existing default orders for it. Please delete these records first before deleting the measurement.`
+        );
+      }, 100);
+      return;
+    }
+
+    // Handle other potential errors
+    let errorTitle = 'Delete Failed';
+    let errorMessage = `Failed to delete the product measurement for "${measurementName}".`;
+    
+    if (error.response?.status) {
+      const status = error.response.status;
       
-      // Keep the view modal open, just show the delete confirmation on top
-      setIsDeleteModalOpen(true);
-    };
-
-
-    const confirmDelete = async () => {
-      if (selectedMeasurement) {
-        try {
-          await deleteProductMeasurement(selectedMeasurement.product_id, selectedMeasurement.size);
-          await loadData();
-          
-          // Close both modals
-          setIsDeleteModalOpen(false);
-          setIsViewModalOpen(false);
-          
-          const measurementName = `${selectedMeasurement.product_name} (Size: ${formatSize(selectedMeasurement.size)})`;
-          setSelectedMeasurement(null);
-          showSuccessMessage('Success!', `Measurement for ${measurementName} deleted successfully!`);
-        } catch (error) {
-          console.error('Failed to delete measurement:', error);
-          showErrorMessage('Deletion Failed', 'Failed to delete measurement. Please try again.');
-        }
+      if (status === 409 || status === 400) {
+        errorTitle = 'Cannot Delete Measurement';
+        errorMessage = `Cannot delete the product measurement for "${measurementName}" because there are existing orders or appointments scheduled for it. Please cancel or delete these appointments first before deleting the measurement.`;
+      } else if (status === 404) {
+        errorTitle = 'Not Found';
+        errorMessage = `The product measurement for "${measurementName}" was not found. It may have already been deleted.`;
+      } else if (status === 403) {
+        errorTitle = 'Access Denied';
+        errorMessage = `You don't have permission to delete this product measurement.`;
+      } else if (status >= 500) {
+        errorTitle = 'Server Error';
+        errorMessage = 'A server error occurred while trying to delete the measurement. Please try again later.';
       }
-    };
+    }
+    // Check for specific error messages from the API
+    else if (error.response?.data?.message || error.response?.data?.detail) {
+      const apiMessage = (error.response.data.message || error.response.data.detail).toLowerCase();
+      
+      if (apiMessage.includes('foreign key') || apiMessage.includes('constraint') || apiMessage.includes('referenced')) {
+        errorTitle = 'Cannot Delete Measurement';
+        errorMessage = `Cannot delete the product measurement for "${measurementName}" because there are existing orders or appointments scheduled for it. Please cancel or delete these appointments first before deleting the measurement.`;
+      } else {
+        errorMessage = error.response.data.message || error.response.data.detail;
+      }
+    }
+    
+    setTimeout(() => {
+      showErrorMessage(errorTitle, errorMessage);
+    }, 100);
+  }
+};
 
   const handleFormSubmit = async (data: CreateProductMeasurementData, isEdit = false) => {
     try {
       if (isEdit && selectedMeasurement) {
         await updateProductMeasurement(selectedMeasurement.id, data);
-        setIsEditModalOpen(false);
         const productName = products.find(p => p.id === data.product_id)?.category_name || 'Selected Product';
         const formattedSize = formatSize(data.size);
         showSuccessMessage('Success!', `Measurement for "${productName}" (Size: ${formattedSize}) has been updated successfully!`);
       } else {
         await createProductMeasurement(data);
-        setIsAddModalOpen(false);
         const productName = products.find(p => p.id === data.product_id)?.category_name || 'Selected Product';
         const formattedSize = formatSize(data.size);
         showSuccessMessage('Success!', `Measurement for "${productName}" (Size: ${formattedSize}) has been created successfully!`);
       }
+      
+      setIsModalOpen(false);
       await loadData();
       setSelectedMeasurement(null);
     } catch (error) {
       showErrorMessage('Save Failed', 'Failed to save measurement. Please try again.');
+    }
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setSelectedMeasurement(null);
+  };
+
+  const getModalTitle = () => {
+    switch (modalMode) {
+      case "create": return "Add Product Measurement";
+      case "edit": return "Edit Product Measurement";
+      case "view": return "View Product Measurement";
     }
   };
 
@@ -386,111 +452,73 @@ const ProductMeasurementComponent: React.FC<ProductMeasurementProps> = ({
         minColumnWidth="120px"
       />
 
-      {/* Add Modal */}
+      {/* Single Modal with mode switching */}
       <SlideModal
-        isOpen={isAddModalOpen}
-        onClose={() => {
-          setIsAddModalOpen(false);
-          setSelectedMeasurement(null);
-        }}
-        title="Add Product Measurement"
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        title={getModalTitle()}
       >
-        <MeasurementForm
-          key="add-form"
-          products={products}
-          onSubmit={(data) => handleFormSubmit(data)}
-          onCancel={() => {
-            setIsAddModalOpen(false);
-            setSelectedMeasurement(null);
-          }}
-          getMeasurementFields={getMeasurementFields}
-        />
+        {modalMode === "view" ? (
+          <MeasurementViewWrapper
+            measurement={selectedMeasurement}
+            onClose={closeModal}
+            onEdit={handleEditFromView}
+            onDelete={handleDeleteFromView}
+            getMeasurementFields={getMeasurementFields}
+            permissions={permissions}
+          />
+        ) : (
+          <MeasurementForm
+            key={modalMode === "create" ? "create-form" : `edit-form-${selectedMeasurement?.id}`}
+            products={products}
+            initialData={modalMode === "edit" ? selectedMeasurement : null}
+            onSubmit={(data) => handleFormSubmit(data, modalMode === "edit")}
+            onCancel={closeModal}
+            getMeasurementFields={getMeasurementFields}
+            isEdit={modalMode === "edit"}
+          />
+        )}
       </SlideModal>
 
-      {/* Edit Modal */}
-      <SlideModal
-        isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          setSelectedMeasurement(null);
-        }}
-        title="Edit Product Measurement"
-      >
-        <MeasurementForm
-          key={`edit-form-${selectedMeasurement?.id}`}
-          products={products}
-          initialData={selectedMeasurement}
-          onSubmit={(data) => handleFormSubmit(data, true)}
-          onCancel={() => {
-            setIsEditModalOpen(false);
-            setSelectedMeasurement(null);
-          }}
-          getMeasurementFields={getMeasurementFields}
-          isEdit
-        />
-      </SlideModal>
-
-      {/* View Modal - Now similar to add/edit modals */}
-      <SlideModal
-        isOpen={isViewModalOpen}
-        onClose={() => {
-          setIsViewModalOpen(false);
-          setSelectedMeasurement(null);
-        }}
-        title="View Product Measurement"
-      >
-        <MeasurementViewWrapper
-          measurement={selectedMeasurement}
-          onClose={() => {
-            setIsViewModalOpen(false);
-            setSelectedMeasurement(null);
-          }}
-          onEdit={handleEditFromView}
-          onDelete={handleDeleteFromView}
-          getMeasurementFields={getMeasurementFields}
-          permissions={permissions}
-        />
-      </SlideModal>
-
-
-{/* Delete Confirmation Modal */}
-{isDeleteModalOpen && (
-  <div className="fixed inset-0 bg-blue-50/70 bg-opacity-50 flex items-center justify-center z-[10000]">
-    <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
-      <div className="p-6">
-        <div className="flex items-center mb-4">
-          <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
-            <Trash2 className="h-6 w-6 text-red-600" />
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 bg-blue-50/70 bg-opacity-50 flex items-center justify-center z-[10000]">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                  <Trash2 className="h-6 w-6 text-red-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Delete Product Measurement</h3>
+              </div>
+              <p className="text-gray-600 mb-6">
+                Are you sure you want to delete the measurement for {selectedMeasurement?.product_name} (Size: {selectedMeasurement?.size ? formatSize(selectedMeasurement.size) : ''})? This action cannot be undone.
+              </p>
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsDeleteModalOpen(false);
+                    setSelectedMeasurement(null);
+                  }}
+                  className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDelete}
+                  disabled={loading}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
           </div>
-          <h3 className="text-lg font-semibold text-gray-900">Delete Product Measurement</h3>
         </div>
-        <p className="text-gray-600 mb-6">
-          Are you sure you want to delete the measurement for {selectedMeasurement?.product_name} (Size: {selectedMeasurement?.size ? formatSize(selectedMeasurement.size) : ''})? This action cannot be undone.
-        </p>
-        <div className="flex justify-end space-x-3">
-          <button
-            type="button"
-            onClick={() => {
-              setIsDeleteModalOpen(false);
-              setSelectedMeasurement(null);
-            }}
-            className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={confirmDelete}
-            disabled={loading}
-            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Deleting...' : 'Delete'}
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
+      )}
+
       {/* Message Modal (replacing Toast) */}
       <MessageModal
         isOpen={messageModal.isOpen}
@@ -503,7 +531,7 @@ const ProductMeasurementComponent: React.FC<ProductMeasurementProps> = ({
   );
 };
 
-// New wrapper component for the view modal content
+// Updated wrapper component for the view modal content
 interface MeasurementViewWrapperProps {
   measurement: ProductMeasurement | null;
   onClose: () => void;
@@ -551,8 +579,9 @@ const MeasurementViewWrapper: React.FC<MeasurementViewWrapperProps> = ({
   if (!measurement) return null;
 
   return (
-    <div className="p-6">
-      <div className="space-y-6">
+    <div className="h-full flex flex-col">
+      {/* Content - Scrollable */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {/* Product ID */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -637,26 +666,52 @@ const MeasurementViewWrapper: React.FC<MeasurementViewWrapperProps> = ({
         )}
       </div>
       
-      {/* Action Buttons */}
-      <div className="flex justify-end space-x-3 pt-6 mt-6 border-t border-gray-200">
-        {permissions.canDelete && (
-          <Button 
-            type="button"
-            onClick={onDelete}
-            className="px-4 py-2 rounded-md text-white bg-red-600 hover:bg-red-700"
-          >
-            Delete
-          </Button>
-        )}
-        {permissions.canEdit && (
-          <Button 
-            type="button"
-            onClick={onEdit}
-            className="px-4 py-2 rounded-md text-white bg-blue-600 hover:bg-blue-700"
-          >
-            Edit
-          </Button>
-        )}
+      {/* Buttons - Fixed at absolute bottom */}
+      <div className="flex-shrink-0 p-6">
+        <div className="flex gap-4">
+          {permissions.canDelete && permissions.canEdit ? (
+            // Both buttons present - use 50/50 flex layout
+            <>
+              <button 
+                type="button"
+                onClick={onDelete}
+                className="flex-1 font-medium text-sm py-2 text-center"
+                style={{ color: 'var(--negative-color, #D83A52)' }}
+              >
+                Delete
+              </button>
+              <button 
+                type="button"
+                onClick={onEdit}
+                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 rounded-md text-sm"
+              >
+                Edit
+              </button>
+            </>
+          ) : (
+            // Single button - use standard layout
+            <div className="flex justify-end gap-3 w-full">
+              {permissions.canDelete && (
+                <button 
+                  type="button"
+                  onClick={onDelete}
+                  className="text-red-500 hover:text-red-600 font-medium text-sm px-4 py-2 hover:bg-red-50 rounded-md transition-colors"
+                >
+                  Delete
+                </button>
+              )}
+              {permissions.canEdit && (
+                <button 
+                  type="button"
+                  onClick={onEdit}
+                  className="bg-blue-500 hover:bg-blue-600 text-white font-medium px-6 py-2 rounded-md text-sm"
+                >
+                  Edit
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -779,33 +834,40 @@ const MeasurementForm: React.FC<MeasurementFormProps> = ({
   };
 
   const validateForm = () => {
-    const newErrors: Record<string, string> = {};
+  const newErrors: Record<string, string> = {};
 
-    if (formData.product_id === 0) {
-      newErrors.product_id = 'Please select a product';
-    }
+  // Always validate product selection first
+  if (formData.product_id === 0) {
+    newErrors.product_id = 'Please select a product';
+  }
 
-    if (!formData.size) {
-      newErrors.size = 'Please select a size';
-    }
+  // Always validate size selection
+  if (!formData.size) {
+    newErrors.size = 'Please select a size';
+  }
 
+  // Only check measurement fields if a product is selected
+  if (formData.product_id > 0) {
     // Check if measurement fields are available
-    if (formData.product_id > 0 && measurementFields.length === 0 && !loadingFields) {
+    if (measurementFields.length === 0 && !loadingFields) {
       newErrors.general = 'Cannot create measurements: No measurement fields are configured for the selected product.';
     }
 
-    // Validate required measurement fields
-    measurementFields.forEach(field => {
-      const fieldKey = field.id.toString();
-      const value = formData.measurements[fieldKey];
-      if (field.is_required === 'true' && (!value || value.toString().trim() === '')) {
-        newErrors[fieldKey] = `${field.field_name} is required`;
-      }
-    });
+    // Validate required measurement fields only if fields are loaded
+    if (measurementFields.length > 0) {
+      measurementFields.forEach(field => {
+        const fieldKey = field.id.toString();
+        const value = formData.measurements[fieldKey];
+        if (field.is_required === 'true' && (!value || value.toString().trim() === '')) {
+          newErrors[fieldKey] = `${field.field_name} is required`;
+        }
+      });
+    }
+  }
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+  setErrors(newErrors);
+  return Object.keys(newErrors).length === 0;
+};
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -823,14 +885,21 @@ const MeasurementForm: React.FC<MeasurementFormProps> = ({
   };
 
   const handleProductChange = (productId: number) => {
-    setFormData(prev => ({
+  setFormData(prev => ({
+    ...prev,
+    product_id: productId,
+    measurements: {}
+  }));
+  setFormInitialized(false);
+  
+  // Clear product_id error when a valid product is selected
+  if (productId > 0 && errors.product_id) {
+    setErrors(prev => ({
       ...prev,
-      product_id: productId,
-      measurements: {} // Reset measurements when product changes
+      product_id: ''
     }));
-    setFormInitialized(false);
-    setErrors({});
-  };
+  }
+};
 
   const handleMeasurementChange = (fieldId: string, value: string) => {
     setFormData(prev => ({
@@ -850,12 +919,24 @@ const MeasurementForm: React.FC<MeasurementFormProps> = ({
     }
   };
 
-  const canSubmit = () => {
-    return !loadingFields && !submitting && formData.product_id > 0 && measurementFields.length > 0 && formInitialized;
-  };
+const canSubmit = () => {
+  if (submitting) return false;
+  if (loadingFields) return false;
+  
+  // Don't disable if user hasn't selected a product yet - let validation handle it
+  if (formData.product_id === 0) return true;
+  
+  // If product is selected but no measurement fields, disable
+  if (formData.product_id > 0 && measurementFields.length === 0 && !loadingFields) return false;
+  
+  // If fields are loading or form is initializing, enable button (validation will catch issues)
+  return true;
+};
 
-  return (
-    <div className="p-6">
+ return (
+  <div className="h-full flex flex-col">
+    {/* Scrollable Content */}
+    <div className="flex-1 overflow-y-auto p-6">
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* General Error Display */}
         {errors.general && (
@@ -895,7 +976,7 @@ const MeasurementForm: React.FC<MeasurementFormProps> = ({
             }`}
             disabled={isEdit}
           >
-            <option value={0}>Select Product ID</option>
+            <option value={0} disabled hidden>Select Product ID</option>
             {products.map(product => (
               <option key={product.id} value={product.id}>
                 {product.id} - {product.category_name}
@@ -914,13 +995,21 @@ const MeasurementForm: React.FC<MeasurementFormProps> = ({
           </label>
           <select
             value={formData.size}
-            onChange={(e) => setFormData(prev => ({ ...prev, size: e.target.value }))}
+            onChange={(e) => {
+                setFormData(prev => ({ ...prev, size: e.target.value }));
+                if (e.target.value && errors.size) {
+                  setErrors(prev => ({
+                    ...prev,
+                    size: ''
+                  }));
+                }
+              }}
             className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 ${
               errors.size ? 'border-red-500' : 'border-gray-300'
             }`}
             disabled={isEdit}
           >
-            <option value="">Select Size</option>
+            <option value="" disabled hidden>Select Size</option>
             {SIZES.map(size => (
               <option key={size} value={size}>
                 {formatSize(size)}
@@ -950,8 +1039,6 @@ const MeasurementForm: React.FC<MeasurementFormProps> = ({
                 {measurementFields.map(field => {
                   const fieldKey = field.id.toString();
                   const fieldValue = formData.measurements[fieldKey] || '';
-                  
-                  console.log(`Rendering field ${field.field_name} (${fieldKey}):`, fieldValue);
                   
                   return (
                     <div key={field.id}>
@@ -993,20 +1080,35 @@ const MeasurementForm: React.FC<MeasurementFormProps> = ({
             )}
           </div>
         )}
-
-        {/* Actions */}
-        <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
-          <Button 
-            type="submit"
-            disabled={!canSubmit()}
-            className="px-4 py-2 rounded-md text-white bg-blue-600 hover:bg-blue-700"
-          >
-            {submitting ? 'Processing...' : (isEdit ? 'Update' : 'Create')} Measurement
-          </Button>
-        </div>
       </form>
     </div>
-  );
+
+    {/* Fixed Buttons at Bottom */}
+    <div className="flex-shrink-0 border-t border-gray-200 bg-white p-6">
+      <div className="flex gap-4">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 font-medium text-sm py-2 text-center hover:bg-gray-50 rounded-md transition-colors text-gray-700"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={!canSubmit()}
+          onClick={handleSubmit}
+          className={`flex-1 font-medium text-sm py-2 rounded-md ${
+            canSubmit()
+              ? 'bg-blue-500 hover:bg-blue-600 text-white'
+              : 'bg-gray-400 cursor-not-allowed text-white'
+          }`}
+        >
+          {submitting ? 'Saving...' : 'Save'}
+        </button>
+      </div>
+    </div>
+  </div>
+);
 };
 
 export default ProductMeasurementComponent;

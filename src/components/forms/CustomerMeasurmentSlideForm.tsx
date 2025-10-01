@@ -28,7 +28,6 @@ interface MeasurementSlideFormProps {
   filterType: FilterType;
   selectedItem: any;
   onSuccess: () => void;
-  // New props for view mode actions
   onEditFromView?: () => void;
   onDeleteFromView?: () => void;
 }
@@ -43,7 +42,6 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
   onEditFromView,
   onDeleteFromView
 }) => {
-  // Custom hooks
   const { 
     saveIndividualMeasurement, 
     saveCorporateMeasurement 
@@ -52,7 +50,6 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
   const { fetchProducts, getCustomerProducts } = useProducts();
   const { fetchMeasurementFields } = useMeasurementFields();
 
-  // Form state
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [measurementFields, setMeasurementFields] = useState<MeasurementField[]>([]);
@@ -60,20 +57,24 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string>('');
   const [loadingMeasurementFields, setLoadingMeasurementFields] = useState(false);
   const [measurementFieldsError, setMeasurementFieldsError] = useState<string>('');
 
+  // Form Validation State - inline errors only
+  const [formErrors, setFormErrors] = useState({
+    customer_id: '',
+    product_id: '',
+    batch_name: ''
+  });
+
   const isDisabled = formMode === 'view';
 
-  // Initialize form when opened
   useEffect(() => {
     if (isOpen) {
       initializeForm();
     }
   }, [isOpen, formMode, selectedItem]);
 
-  // Load customer-specific products when customer changes
   useEffect(() => {
     const customerId = formData[filterType === 'individual' ? 'customer_id' : 'corporate_customer_id'];
     if (customerId && isOpen) {
@@ -81,16 +82,31 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
     }
   }, [formData.customer_id, formData.corporate_customer_id, filterType, isOpen]);
 
+  // Clear form errors when form data changes
+  useEffect(() => {
+    const hasErrors = Object.values(formErrors).some(error => error !== '');
+    if (hasErrors) {
+      setFormErrors({
+        customer_id: '',
+        product_id: '',
+        batch_name: ''
+      });
+    }
+  }, [formData]);
+
   const initializeForm = async () => {
     setLoading(true);
-    setError('');
     setMeasurementFieldsError('');
+    setFormErrors({
+      customer_id: '',
+      product_id: '',
+      batch_name: ''
+    });
     
     try {
       await loadCustomers();
 
       if (selectedItem && (formMode === 'edit' || formMode === 'view')) {
-        // Transform measurements array to object
         let transformedItem = { ...selectedItem };
         
         if (selectedItem.measurements && Array.isArray(selectedItem.measurements)) {
@@ -135,7 +151,6 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
         setProducts([]);
       }
     } catch (err) {
-      setError('Failed to initialize form');
       console.error(err);
     } finally {
       setLoading(false);
@@ -153,7 +168,6 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
 
   const loadCustomerProducts = async (customerId: string) => {
     try {
-      console.log('Loading products for customer:', customerId);
       const data = await getCustomerProducts(customerId, filterType);
       setProducts(data);
     } catch (err) {
@@ -175,7 +189,6 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
       const data = await fetchMeasurementFields(productId);
       setMeasurementFields(data);
       
-      // Check if no measurement fields exist for this product
       if (!data || data.length === 0) {
         setMeasurementFieldsError(
           `No measurement fields are configured for this product. Please add measurement fields before creating measurements.`
@@ -234,56 +247,81 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
   };
 
   const validateForm = (): boolean => {
-    setError('');
+    const errors = {
+      customer_id: '',
+      product_id: '',
+      batch_name: ''
+    };
+    
+    let isValid = true;
 
-    // Check if measurement fields are loaded and available
-    if (formData.product_id && measurementFields.length === 0 && !loadingMeasurementFields) {
-      setError('Cannot create measurements: No measurement fields are configured for the selected product. Please contact the administrator to add measurement fields first.');
-      return false;
+    // Customer validation
+    const customerIdField = filterType === 'individual' ? 'customer_id' : 'corporate_customer_id';
+    if (!formData[customerIdField]) {
+      errors.customer_id = `${filterType === 'individual' ? 'Customer' : 'Corporate Customer'} ID is required`;
+      isValid = false;
     }
 
-    if (filterType === 'individual') {
-      if (!formData.customer_id) {
-        setError('Customer ID is required');
-        return false;
-      }
-      if (!formData.product_id) {
-        setError('Product ID is required');
-        return false;
-      }
-    } else {
-      if (!formData.corporate_customer_id) {
-        setError('Corporate Customer ID is required');
-        return false;
-      }
-      if (!formData.product_id) {
-        setError('Product ID is required');
-        return false;
-      }
+    // Product validation
+    if (!formData.product_id) {
+      errors.product_id = 'Product ID is required';
+      isValid = false;
+    } else if (measurementFields.length === 0 && !loadingMeasurementFields) {
+      errors.product_id = 'No measurement fields configured for this product';
+      isValid = false;
+    }
+
+    // Corporate-specific validations
+    if (filterType === 'corporate') {
       if (!formData.batch_name?.trim()) {
-        setError('Batch Name is required');
-        return false;
+        errors.batch_name = 'Batch Name is required';
+        isValid = false;
       }
+
+      // CRITICAL: Must have at least one employee
       if (employees.length === 0) {
-        setError('At least one employee is required');
-        return false;
+        isValid = false;
       }
-      
-      // Validate employees
+
+      // Validate employees silently
       for (let i = 0; i < employees.length; i++) {
         const employee = employees[i];
-        if (!employee.employee_code?.trim()) {
-          setError(`Employee ${i + 1}: Employee Code is required`);
-          return false;
+        if (!employee.employee_code?.trim() || !employee.employee_name?.trim()) {
+          isValid = false;
+          break;
         }
-        if (!employee.employee_name?.trim()) {
-          setError(`Employee ${i + 1}: Employee Name is required`);
-          return false;
+
+        // Validate employee measurements silently
+        if (measurementFields.length > 0) {
+          for (const field of measurementFields) {
+            if (field.required) {
+              const value = employee.measurements?.[field.id];
+              if (!value || value.toString().trim() === '') {
+                isValid = false;
+                break;
+              }
+            }
+          }
+          if (!isValid) break;
         }
       }
     }
 
-    return true;
+    // Validate individual measurements silently
+    if (filterType === 'individual' && formData.product_id && measurementFields.length > 0) {
+      for (const field of measurementFields) {
+        if (field.required) {
+          const value = formData.measurements?.[field.id];
+          if (!value || value.toString().trim() === '') {
+            isValid = false;
+            break;
+          }
+        }
+      }
+    }
+
+    setFormErrors(errors);
+    return isValid;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -292,7 +330,6 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
     if (!validateForm()) return;
 
     setSubmitting(true);
-    setError('');
 
     try {
       let payload = { ...formData };
@@ -312,20 +349,22 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
 
       onSuccess();
       onClose();
-    } catch (err) {
-      setError('Failed to save measurement');
-      console.error(err);
+    } catch (err: any) {
+      console.error('Save error:', err);
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Check if form can be submitted
   const canSubmit = () => {
     if (isDisabled) return false;
     if (submitting) return false;
     if (loadingMeasurementFields) return false;
     if (formData.product_id && measurementFields.length === 0) return false;
+    
+    // CRITICAL: Corporate measurements require at least one employee
+    if (filterType === 'corporate' && employees.length === 0) return false;
+    
     return true;
   };
 
@@ -333,15 +372,14 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
 
   return (
     <>
-      {/* Backdrop */}
       <div 
         className="fixed inset-0 bg-black/50 bg-opacity-50 z-40"
         onClick={onClose}
       />
       
-      {/* Form Panel */}
-      <div className="fixed inset-y-0 right-0 w-96 bg-white shadow-xl z-50 transform transition-transform duration-300 ease-in-out overflow-y-auto flex flex-col">
-        <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-white sticky top-0 z-10">
+      <div className="fixed inset-y-0 right-0 w-96 bg-white shadow-xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col">
+        {/* Header - Fixed */}
+        <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-white flex-shrink-0">
           <h2 className="text-xl font-semibold text-gray-900">
             {formMode === 'add' ? 'Add' : formMode === 'edit' ? 'Edit' : 'View'}{' '}
             {filterType === 'individual' ? 'Individual' : 'Corporate'} Measurement
@@ -354,27 +392,9 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
           </button>
         </div>
 
-        {/* Error Display */}
-        {error && (
-          <div className="mx-6 mt-4 bg-red-50 border border-red-200 rounded-md p-4">
-            <div className="flex items-start space-x-3">
-              <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
-              <div className="flex-1">
-                <div className="text-red-800 text-sm">{error}</div>
-              </div>
-              <button
-                onClick={() => setError('')}
-                className="text-red-400 hover:text-red-600"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Measurement Fields Warning */}
+        {/* Error Message - Fixed */}
         {measurementFieldsError && (
-          <div className="mx-6 mt-4 bg-amber-50 border border-amber-200 rounded-md p-4">
+          <div className="mx-6 mt-4 bg-amber-50 border border-amber-200 rounded-md p-4 flex-shrink-0">
             <div className="flex items-start space-x-3">
               <AlertCircle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
               <div className="flex-1">
@@ -387,8 +407,25 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
           </div>
         )}
 
-        {/* Form Content */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Warning for corporate measurements without employees */}
+        {filterType === 'corporate' && employees.length === 0 && formData.product_id && !loading && (
+          <div className="mx-6 mt-4 bg-amber-50 border border-amber-200 rounded-md p-4 flex-shrink-0">
+            <div className="flex items-start space-x-3">
+              <AlertCircle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <div className="text-amber-800 text-sm font-medium mb-1">
+                  No Employees Added
+                </div>
+                <div className="text-amber-700 text-sm">
+                  You must add at least one employee before you can save this corporate measurement.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Scrollable Content Area */}
+        <div className="flex-1 overflow-y-auto min-h-0">
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
             {loading ? (
               <div className="flex justify-center py-12">
@@ -396,22 +433,22 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
               </div>
             ) : (
               <>
-                {/* Customer Selection */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     {filterType === 'individual' ? 'Customer ID' : 'Corporate Customer ID'}{' '}
-                    <span >*</span>
+                    <span>*</span>
                   </label>
                   <select
                     value={formData[filterType === 'individual' ? 'customer_id' : 'corporate_customer_id'] || ''}
                     onChange={(e) => handleCustomerChange(e.target.value)}
-                    className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      isDisabled ? 'bg-gray-100' : ''
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                      formErrors.customer_id 
+                        ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                        : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                    } ${isDisabled ? 'bg-gray-100' : ''}`}
                     disabled={isDisabled}
-                    required
                   >
-                    <option value="">Select Customer ID</option>
+                    <option value="" disabled hidden>Select Customer ID</option>
                     {customers.map((customer: any) => {
                       const customerName = customer.customer_name || 
                                           customer.name || 
@@ -426,9 +463,14 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
                       );
                     })}
                   </select>
+                  {formErrors.customer_id && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.customer_id}</p>
+                  )}
+                  {customers.length === 0 && !loading && (
+                    <p className="mt-1 text-sm text-gray-500">No customers available.</p>
+                  )}
                 </div>
 
-                {/* Product Selection */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Product ID <span>*</span>
@@ -436,16 +478,17 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
                   <select
                     value={formData.product_id || ''}
                     onChange={(e) => handleProductChange(e.target.value)}
-                    className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      isDisabled ? 'bg-gray-100' : ''
-                    }`}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                      formErrors.product_id 
+                        ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                        : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                    } ${isDisabled ? 'bg-gray-100' : ''}`}
                     disabled={isDisabled || !formData[filterType === 'individual' ? 'customer_id' : 'corporate_customer_id']}
-                    required
                   >
-                    <option value="">
+                    <option value="" disabled hidden>
                       {!formData[filterType === 'individual' ? 'customer_id' : 'corporate_customer_id'] 
                         ? 'Select customer first'
-                        : 'Select Product'
+                        : 'Select Product ID'
                       }
                     </option>
                     {products.map((product: any) => (
@@ -456,14 +499,14 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
                       </option>
                     ))}
                   </select>
+                  {formErrors.product_id && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.product_id}</p>
+                  )}
                   {formData[filterType === 'individual' ? 'customer_id' : 'corporate_customer_id'] && products.length === 0 && !loading && (
-                    <p className="mt-1 text-sm text-gray-500">
-                      No products available for this customer.
-                    </p>
+                    <p className="mt-1 text-sm text-gray-500">No products available for this customer.</p>
                   )}
                 </div>
 
-                {/* Loading indicator for measurement fields */}
                 {loadingMeasurementFields && (
                   <div className="flex items-center justify-center py-4">
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
@@ -471,7 +514,6 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
                   </div>
                 )}
 
-                {/* Corporate-specific: Batch Name */}
                 {filterType === 'corporate' && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -481,17 +523,20 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
                       type="text"
                       value={formData.batch_name || ''}
                       onChange={(e) => setFormData({ ...formData, batch_name: e.target.value })}
-                      className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                        isDisabled ? 'bg-gray-100' : ''
-                      }`}
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                        formErrors.batch_name 
+                          ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+                          : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                      } ${isDisabled ? 'bg-gray-100' : ''}`}
                       disabled={isDisabled}
-                      required
                       placeholder="Enter batch name"
                     />
+                    {formErrors.batch_name && (
+                      <p className="mt-1 text-sm text-red-600">{formErrors.batch_name}</p>
+                    )}
                   </div>
                 )}
 
-                {/* Individual measurements */}
                 {filterType === 'individual' && formData.product_id && (
                   <div className="space-y-4">
                     <h3 className="text-lg font-medium text-gray-900 border-t pt-4">Measurements</h3>
@@ -526,7 +571,6 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
                   </div>
                 )}
 
-                {/* Corporate employees */}
                 {filterType === 'corporate' && formData.product_id && (
                   <div className="border-t pt-4">
                     {measurementFields.length > 0 ? (
@@ -553,53 +597,78 @@ const MeasurementSlideForm: React.FC<MeasurementSlideFormProps> = ({
           </form>
         </div>
 
-        {/* Action Buttons - Different layouts for view vs edit/add */}
-        {formMode === 'view' ? (
-          // View mode: Show Edit and Delete buttons
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 bg-white px-6 pb-6">
-            {onDeleteFromView && (
-              <Button 
-                type="button"
-                onClick={onDeleteFromView}
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                Delete
-              </Button>
-            )}
-            {onEditFromView && (
-              <Button 
-                type="button"
-                onClick={onEditFromView}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                Edit
-              </Button>
-            )}
-          </div>
-        ) : (
-          // Edit/Add mode: Show form submission button
-          !loading && (
-            <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200 bg-white px-6 pb-6">
-              <button
-                type="submit"
-                disabled={!canSubmit()}
-                onClick={handleSubmit}
-                className={`px-6 py-2 text-sm font-medium text-white border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  canSubmit()
-                    ? 'bg-blue-600 hover:bg-blue-700'
-                    : 'bg-gray-400 cursor-not-allowed'
-                }`}
-                title={
-                  !canSubmit() && formData.product_id && measurementFields.length === 0
-                    ? 'Cannot submit: No measurement fields available for selected product'
-                    : undefined
-                }
-              >
-                {submitting ? 'Saving...' : (formMode === 'add' ? 'Add Measurement' : 'Update Measurement')}
-              </button>
+        {/* Footer Buttons - Fixed */}
+        <div className="flex-shrink-0 border-t border-gray-200 bg-white">
+          {formMode === 'view' ? (
+            <div className="flex gap-4 px-6 py-6">
+              {onDeleteFromView && onEditFromView ? (
+                <>
+                  <button 
+                    type="button"
+                    onClick={onDeleteFromView}
+                    className="flex-1 font-medium text-sm py-2 text-center hover:bg-red-50 rounded-md transition-colors"
+                    style={{ color: 'var(--negative-color, #D83A52)' }}
+                  >
+                    Delete
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={onEditFromView}
+                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 rounded-md text-sm"
+                  >
+                    Edit
+                  </button>
+                </>
+              ) : (
+                <div className="flex justify-end gap-3 w-full">
+                  {onDeleteFromView && (
+                    <button 
+                      type="button"
+                      onClick={onDeleteFromView}
+                      className="text-red-500 hover:text-red-600 font-medium text-sm px-4 py-2 hover:bg-red-50 rounded-md transition-colors"
+                    >
+                      Delete
+                    </button>
+                  )}
+                  {onEditFromView && (
+                    <button 
+                      type="button"
+                      onClick={onEditFromView}
+                      className="bg-blue-500 hover:bg-blue-600 text-white font-medium px-6 py-2 rounded-md text-sm"
+                    >
+                      Edit
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
-          )
-        )}
+          ) : (
+            !loading && (
+              <div className="flex gap-4 px-6 py-6">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 font-medium text-sm py-2 text-center hover:bg-gray-50 rounded-md transition-colors text-gray-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!canSubmit()}
+                  onClick={handleSubmit}
+                  className={`flex-1 font-medium text-sm py-2 rounded-md ${
+                    canSubmit()
+                      ? 'bg-blue-500 hover:bg-blue-600 text-white'
+                      : 'bg-gray-400 cursor-not-allowed text-white'
+                  }`}
+                  title={filterType === 'corporate' && employees.length === 0 ? 'Add at least one employee to save' : ''}
+                >
+                  {submitting ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            )
+          )}
+        </div>
       </div>
     </>
   );

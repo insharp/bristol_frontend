@@ -189,30 +189,64 @@ const useProductMeasurement = () => {
 
   // Delete product measurement by product ID and size
   const deleteProductMeasurement = useCallback(async (productId: number, size: string): Promise<void> => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`${baseUrl}/product-measurement/product/${productId}/size/${size}`, {
-        credentials:"include",
-        method: 'DELETE',
-      });
-     
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Failed to delete product measurement');
-      }
+  setLoading(true);
+  setError('');
+  
+  try {
+    const response = await fetch(`${baseUrl}/product-measurement/product/${productId}/size/${size}`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
 
-      // Optionally handle the success response
-      const result = await response.json();
-      console.log('Delete successful:', result.message);
-      
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      throw err;
-    } finally {
-      setLoading(false);
+    if (response.ok) {
+      return;
     }
-  }, []);
+
+    // Try to get error details from response
+    let errorData = {};
+    try {
+      errorData = await response.json();
+    } catch (jsonError) {
+      console.warn('Could not parse error response as JSON:', jsonError);
+    }
+
+    // Create error with response details
+    const error = new Error((errorData as any).message || (errorData as any).detail || `HTTP ${response.status}: ${response.statusText}`);
+    (error as any).response = {
+      status: response.status,
+      statusText: response.statusText,
+      data: errorData
+    };
+    
+    throw error;
+    
+  } catch (error: any) {
+    console.error('Delete product measurement error:', error);
+    
+    // More comprehensive constraint error detection
+    const errorMessage = error.message?.toLowerCase() || '';
+    const hasConstraintIndicators = 
+      errorMessage.includes('foreign_key_constraint') ||
+      errorMessage.includes('foreign key constraint') ||
+      errorMessage.includes('orders exist for this product/size') ||
+      errorMessage.includes('cannot delete product measurement because orders exist') ||
+      error.response?.data?.error === 'FOREIGN_KEY_CONSTRAINT';
+    
+    if (error.response?.status === 409 || hasConstraintIndicators) {
+      console.log('🔍 Detected constraint error, transforming...');
+      const constraintError = new Error('Foreign key constraint violation');
+      (constraintError as any).isConstraintError = true;
+      throw constraintError;
+    }
+    
+    throw error;
+  } finally {
+    setLoading(false);
+  }
+}, []);
 
   // Get single product measurement
   const getProductMeasurement = useCallback(async (id: number): Promise<ProductMeasurement> => {

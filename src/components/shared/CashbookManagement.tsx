@@ -1479,228 +1479,240 @@ const CashBookManagement: React.FC<CashBookManagementProps> = ({
       </div>
     )}
 
-    {/* Entry Form Modal */}
+   
+   {/* Entry Form Modal */}
     <SlideModal isOpen={isModalOpen} onClose={closeModal} title={getModalTitle()}>
-      <form onSubmit={handleSubmit} className="p-6 space-y-4">
-        {/* Date field */}
-       <input
-        type="date"
-        value={formData.transaction_date}
-        onChange={(e) => setFormData({ ...formData, transaction_date: e.target.value })}
-        max={new Date().toISOString().split('T')[0]} // Prevent future dates
-        className={`w-full px-3 py-2 border rounded-md ${
-          formErrors.transaction_date ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-        } focus:outline-none focus:ring-2`}
-        readOnly={modalMode === "view"}
-        required
-      />
-
-        {/* Amount field */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Amount *</label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <span className="text-gray-500 font-medium">Rs.</span>
-            </div>
+      <form onSubmit={handleSubmit} className="p-6 space-y-4 h-full flex flex-col">
+        <div className="flex-1 space-y-4">
+          {/* Date field */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Transaction Date <span>*</span>
+            </label>
             <input
-              type="number"
-              step="0.01"
-              min="0.01"
-              value={formData.amount}
-              onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-              className={`w-full pl-12 pr-3 py-2 border rounded-md ${
-                formErrors.amount ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+              type="date"
+              value={formData.transaction_date}
+              onChange={(e) => setFormData({ ...formData, transaction_date: e.target.value })}
+              max={new Date().toISOString().split('T')[0]} // Prevent future dates
+              className={`w-full px-3 py-2 border rounded-md ${
+                formErrors.transaction_date ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
               } focus:outline-none focus:ring-2`}
-              placeholder="4500.00"
               readOnly={modalMode === "view"}
-              required
+            />
+            {formErrors.transaction_date && (
+              <p className="mt-1 text-sm text-red-600">{formErrors.transaction_date}</p>
+            )}
+          </div>
+
+          {/* Amount field */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Amount *</label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <span className="text-gray-500 font-medium">Rs.</span>
+              </div>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={formData.amount}
+                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                className={`w-full pl-12 pr-3 py-2 border rounded-md ${
+                  formErrors.amount ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                } focus:outline-none focus:ring-2`}
+                placeholder="4500.00"
+                readOnly={modalMode === "view"}
+              />
+            </div>
+            {formErrors.amount && (
+              <p className="mt-1 text-sm text-red-600">{formErrors.amount}</p>
+            )}
+          </div>
+
+          {/* Description field */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Description *</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              className={`w-full px-3 py-2 border rounded-md ${
+                formErrors.description ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+              } focus:outline-none focus:ring-2`}
+              placeholder="Enter Description"
+              rows={3}
+              readOnly={modalMode === "view"}
+            />
+            {formErrors.description && (
+              <p className="mt-1 text-sm text-red-600">{formErrors.description}</p>
+            )}
+          </div>
+
+          {/* Special Notes field */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Special Notes</label>
+            <textarea
+              value={formData.special_notes}
+              onChange={(e) => setFormData({ ...formData, special_notes: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              rows={3}
+              placeholder="Enter Any Special Notes"
+              readOnly={modalMode === "view"}
             />
           </div>
-          {formErrors.amount && (
-            <p className="mt-1 text-sm text-red-600">{formErrors.amount}</p>
-          )}
-        </div>
 
-        {/* Description field */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Description *</label>
-          <textarea
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            className={`w-full px-3 py-2 border rounded-md ${
-              formErrors.description ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-            } focus:outline-none focus:ring-2`}
-            placeholder="Enter Description"
-            rows={3}
-            readOnly={modalMode === "view"}
-            required
-          />
-          {formErrors.description && (
-            <p className="mt-1 text-sm text-red-600">{formErrors.description}</p>
-          )}
-        </div>
+          {/* References Section */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">References</label>
+            
+            {/* Add New Reference */}
+            {modalMode !== "view" && (
+              <div className="space-y-3 p-4 border border-gray-200 rounded-md bg-gray-50">
+                {/* Reference Type Selection as Tags */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-2">Reference Type</label>
+                  <div className="flex flex-wrap gap-2">
+                    {referenceTypes.map(type => (
+                      <button
+                        key={type.value}
+                        type="button"
+                        onClick={() => setNewReference({ ...newReference, type: type.value })}
+                        className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                          newReference.type === type.value
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {type.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-        {/* Special Notes field */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Special Notes</label>
-          <textarea
-            value={formData.special_notes}
-            onChange={(e) => setFormData({ ...formData, special_notes: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            rows={3}
-            placeholder="Enter Any Special Notes"
-            readOnly={modalMode === "view"}
-          />
-        </div>
-
-        {/* References Section */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">References</label>
-          
-          {/* Add New Reference */}
-          {modalMode !== "view" && (
-            <div className="space-y-3 p-4 border border-gray-200 rounded-md bg-gray-50">
-              {/* Reference Type Selection as Tags */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-2">Reference Type</label>
-                <div className="flex flex-wrap gap-2">
-                  {referenceTypes.map(type => (
+                {/* Reference Detail */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Reference Detail</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newReference.detail}
+                      onChange={(e) => setNewReference({ ...newReference, detail: e.target.value })}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      placeholder="Enter Reference Detail"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addReference();
+                        }
+                      }}
+                    />
                     <button
-                      key={type.value}
                       type="button"
-                      onClick={() => setNewReference({ ...newReference, type: type.value })}
-                      className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
-                        newReference.type === type.value
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                      }`}
+                      onClick={addReference}
+                      disabled={!newReference.type || !newReference.detail.trim()}
+                      className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600 transition-colors"
                     >
-                      {type.label}
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add
                     </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Display Added References as Tags */}
+            {formData.references.length > 0 && (
+              <div className="mt-4">
+                <label className="block text-xs font-medium text-gray-600 mb-2">Added References</label>
+                <div className="flex flex-wrap gap-2">
+                  {formData.references.map((ref) => (
+                    <div
+                      key={ref.id}
+                      className="inline-flex items-center bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full"
+                    >
+                      <span className="font-medium mr-1">
+                        {referenceTypes.find(type => type.value === ref.type)?.label || ref.type}:
+                      </span>
+                      <span className="max-w-[200px] truncate" title={ref.detail}>
+                        {ref.detail}
+                      </span>
+                      {modalMode !== "view" && (
+                        <button
+                          type="button"
+                          onClick={() => removeReference(ref.id)}
+                          className="ml-2 text-blue-600 hover:text-blue-800 transition-colors"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
+            )}
+          
+            {/* Show when no references are present - Only for create/edit modes */}
+            {formData.references.length === 0 && modalMode !== "view" && (
+              <p className="text-sm text-gray-600 mt-3 px-3 py-2 bg-gray-50 rounded-md border border-gray-200">
+                No references added
+              </p>
+            )}
 
-              {/* Reference Detail */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Reference Detail</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newReference.detail}
-                    onChange={(e) => setNewReference({ ...newReference, detail: e.target.value })}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                    placeholder="Enter Reference Detail"
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addReference();
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={addReference}
-                    disabled={!newReference.type || !newReference.detail.trim()}
-                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600 transition-colors"
-                  >
-                    <Plus className="w-4 h-4 mr-1" />
-                    Add
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Display Added References as Tags */}
-          {formData.references.length > 0 && (
-            <div className="mt-4">
-              <label className="block text-xs font-medium text-gray-600 mb-2">Added References</label>
-              <div className="flex flex-wrap gap-2">
-                {formData.references.map((ref) => (
-                  <div
-                    key={ref.id}
-                    className="inline-flex items-center bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full"
-                  >
-                    <span className="font-medium mr-1">
-                      {referenceTypes.find(type => type.value === ref.type)?.label || ref.type}:
-                    </span>
-                    <span className="max-w-[200px] truncate" title={ref.detail}>
-                      {ref.detail}
-                    </span>
-                    {modalMode !== "view" && (
-                      <button
-                        type="button"
-                        onClick={() => removeReference(ref.id)}
-                        className="ml-2 text-blue-600 hover:text-blue-800 transition-colors"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-         
-          {/* Show when no references are present */}
-          {formData.references.length === 0 && (
-            <p className="text-sm text-gray-600 mt-3 px-3 py-2 bg-gray-50 rounded-md border border-gray-200">
-              No references added
-            </p>
-          )}
-
-          {/* View Mode - Show References in Clean Format */}
-          {modalMode === "view" && formData.references.length === 0 && (
-            <p className="text-sm text-gray-500 italic">No references added</p>
-          )}
+            {/* View Mode - Show single clean message when no references */}
+            {modalMode === "view" && formData.references.length === 0 && (
+              <p className="text-sm text-gray-500 italic">No references added</p>
+            )}
+          </div>
         </div>
-
-        {/* Button Section */}
-        <div className="flex justify-end pt-4">
+        
+        {/* Action Buttons - Positioned at the bottom */}
+        <div className="flex pt-16 gap-4 mt-auto">
           {modalMode === "view" ? (
-            <div className="flex gap-3">
+            <>
               {permissions.canDelete && (
-                <Button 
+                <button 
                   type="button"
                   onClick={handleDeleteFromView}
-                  className="bg-red-600 hover:bg-red-700 text-white"
+                  className="flex-1 font-medium text-sm py-2 text-center hover:bg-red-50 rounded-md transition-colors"
+                  style={{ color: 'var(--negative-color, #D83A52)' }}
                 >
                   Delete
-                </Button>
+                </button>
               )}
               {permissions.canEdit && (
-                <Button 
+                <button 
                   type="button"
-                  onClick={() => {
-                    setModalMode("edit");
-                  }}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={() => setModalMode("edit")}
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 rounded-md text-sm"
                 >
                   Edit
-                </Button>
+                </button>
               )}
-            </div>
+            </>
           ) : (
-            <Button 
-              type="submit" 
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-                  {modalMode === "create" 
-                    ? `Adding ${entryType === 'income' ? 'Income' : 'Expense'}...` 
-                    : `Updating ${entryType === 'income' ? 'Income' : 'Expense'}...`
-                  }
-                </>
-              ) : (
-                modalMode === "create" 
-                  ? `Add ${entryType === 'income' ? 'Income' : 'Expense'}` 
-                  : `Update ${entryType === 'income' ? 'Income' : 'Expense'}`
-              )}
-            </Button>
+            <>
+              <button 
+                type="button"
+                onClick={closeModal}
+                disabled={loading}
+                className="flex-1 font-medium text-sm py-2 text-center text-gray-700 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit"
+                disabled={loading}
+                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              >
+                {loading ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin mr-2" />
+                    {modalMode === "create" ? "Saving..." : "Updating..."}
+                  </>
+                ) : (
+                  "Save"
+                )}
+              </button>
+            </>
           )}
         </div>
       </form>

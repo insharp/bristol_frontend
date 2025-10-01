@@ -109,6 +109,9 @@ const UsersPage = () => {
     password: ''
   });
 
+  // Password visibility state
+  const [showPassword, setShowPassword] = useState(false);
+
   // Show Success Message
   const showSuccessMessage = (title: string, message: string) => {
     setMessageModal({
@@ -137,11 +140,13 @@ const UsersPage = () => {
   // Function to switch from view to edit mode (like in ProductManagement)
   const handleEditFromView = () => {
     if (!selectedUser) return;
+    
+    // Just switch the modal states directly - no timeout needed
     setIsViewModalOpen(false);
-    setTimeout(() => {
-      setIsEditModalOpen(true);
-    }, 100);
+    setIsEditModalOpen(true);
+    // Form data is already set from when the view modal was opened
   };
+
 
   // Function to initiate delete from view modal
   const handleDeleteFromView = () => {
@@ -170,6 +175,7 @@ const UsersPage = () => {
     }
   };
 
+  
   // Form Validation
   const validateForm = () => {
     const errors = {
@@ -193,12 +199,32 @@ const UsersPage = () => {
       errors.email = 'Please enter a valid email address';
     }
 
-    // Password validation (only for create mode)
+    // Password validation
     if (isCreateModalOpen) {
+      // For CREATE: Password is required
       if (!formData.password.trim()) {
         errors.password = 'Password is required';
       } else if (formData.password.length < 6) {
         errors.password = 'Password must be at least 6 characters long';
+      } else if (!/[A-Z]/.test(formData.password)) {
+        errors.password = 'Password must contain at least one uppercase letter';
+      } else if (!/[0-9]/.test(formData.password)) {
+        errors.password = 'Password must contain at least one number';
+      } else if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(formData.password)) {
+        errors.password = 'Password must contain at least one special character';
+      }
+    } else if (isEditModalOpen) {
+      // For EDIT: Password is optional, but if provided, must be valid
+      if (formData.password.trim()) {
+        if (formData.password.length < 6) {
+          errors.password = 'Password must be at least 6 characters long';
+        } else if (!/[A-Z]/.test(formData.password)) {
+          errors.password = 'Password must contain at least one uppercase letter';
+        } else if (!/[0-9]/.test(formData.password)) {
+          errors.password = 'Password must contain at least one number';
+        } else if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(formData.password)) {
+          errors.password = 'Password must contain at least one special character';
+        }
       }
     }
 
@@ -345,6 +371,7 @@ const UsersPage = () => {
     setSelectedUser(null);
     setFormData({ username: "", email: "", password: "", role: "admin" });
     setFormErrors({ username: '', email: '', password: '' });
+    setShowPassword(false);
     setIsCreateModalOpen(true);
   };
 
@@ -352,12 +379,14 @@ const UsersPage = () => {
     setIsCreateModalOpen(false);
     setSelectedUser(null);
     setFormErrors({ username: '', email: '', password: '' });
+    setShowPassword(false);
   };
 
   const closeEditModal = () => {
     setIsEditModalOpen(false);
     setSelectedUser(null);
     setFormErrors({ username: '', email: '', password: '' });
+    setShowPassword(false);
   };
 
   const closeViewModal = () => {
@@ -365,89 +394,156 @@ const UsersPage = () => {
     setSelectedUser(null);
   };
 
+const ViewModalContent = () => (
+  <div className="p-6 space-y-4 h-full flex flex-col">
+    <div className="flex-1 space-y-4">
+      <div>
+        <label className="block text-sm font-medium mb-2">Username</label>
+        <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+          {formData.username}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Email</label>
+        <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+          {formData.email}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Role</label>
+        <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+            formData.role === 'admin' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'
+          }`}>
+            {formData.role === 'admin' ? 'Admin' : 'Super Admin'}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    {/* Action Buttons - Positioned at the bottom */}
+    <div className="flex pt-16 gap-4 mt-auto">
+      <button 
+        type="button"
+        onClick={handleDeleteFromView}
+        className="flex-1 font-medium text-sm py-2 text-center hover:bg-red-50 rounded-md transition-colors"
+        style={{ color: 'var(--negative-color, #D83A52)' }}
+      >
+        Delete
+      </button>
+      <button 
+        type="button"
+        onClick={handleEditFromView}
+        className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 rounded-md text-sm"
+      >
+        Edit
+      </button>
+    </div>
+  </div>
+);
+
   // CRUD operations
   const createUser = async () => {
-    try {
-      const res = await fetch(
-        `http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}/user/signup`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(formData),
-        }
-      );
-      
-
-      if (res.ok) {
-        const newUser = await res.json();
-        console.log("Create user response",newUser.user);
-
-        setUsers([...users, newUser.user || newUser]);
-        closeCreateModal();
-        showSuccessMessage('Success!', `User "${formData.username}" has been created successfully.`);
-      } else {
-        const errorData = await res.json();
-        showErrorMessage('Creation Failed', errorData.message || 'Failed to create user. Please try again.');
+  try {
+    const res = await fetch(
+      `http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}/user/signup`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(formData),
       }
-    } catch (err) {
-      console.error("Error creating user:", err);
-      showErrorMessage('Error', 'Unable to create user. Please check your connection and try again.');
+    );
+
+    if (res.ok) {
+      const newUser = await res.json();
+      console.log("Create user response", newUser.user);
+
+      setUsers([...users, newUser.user || newUser]);
+      closeCreateModal();
+      showSuccessMessage('Success!', `User "${formData.username}" has been created successfully.`);
+    } else {
+      const errorData = await res.json();
+      console.error("Signup failed:", errorData);
+      
+      // Check if it's an email already exists error
+      if (errorData.detail && errorData.detail.includes('email')) {
+        // Show inline validation error for email field
+        setFormErrors({
+          ...formErrors,
+          email: 'This email is already registered'
+        });
+      } else {
+        // Show general error modal for other errors
+        showErrorMessage('Creation Failed', errorData.detail || errorData.message || 'Failed to create user. Please try again.');
+      }
     }
+  } catch (err) {
+    console.error("Error creating user:", err);
+    showErrorMessage('Error', 'Unable to create user. Please check your connection and try again.');
+  }
+};
+
+ const updateUser = async () => {
+  if (!selectedUser) return;
+  
+  // Prepare the update payload - only include password if it's provided
+  const updatePayload = {
+    username: formData.username,
+    email: formData.email,
+    role: formData.role,
+    ...(formData.password.trim() && { password: formData.password })
   };
 
-  const updateUser = async () => {
-    if (!selectedUser) return;
+  try {
+    const res = await fetch(
+      `http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}/user/users/${selectedUser.id}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(updatePayload),
+      }
+    );
     
-    // Prepare the update payload - only include password if it's provided
-    const updatePayload = {
-      username: formData.username,
-      email: formData.email,
-      role: formData.role,
-      ...(formData.password.trim() && { password: formData.password })
-    };
-
-    try {
-      const res = await fetch(
-        `http://${process.env.NEXT_PUBLIC_BACKEND_HOST}:${process.env.NEXT_PUBLIC_BACKEND_PORT}/user/users/${selectedUser.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(updatePayload),
-        }
-      );
+    if (res.ok) {
+      const response = await res.json();
+      console.log("Update user response:", response);
       
-      if (res.ok) {
-        const response = await res.json();
-        console.log("Update user response:", response);
-        
-        // Handle different response structures
-        const updatedUserData = response.data || response.user || response;
-        
-        // Create the updated user object
-        const updatedUser = {
-          id: selectedUser.id,
-          username: formData.username,
-          email: formData.email,
-          role: formData.role
-        };
-        
-        // Update the users array
-        setUsers(users.map(u => u.id === selectedUser.id ? updatedUser : u));
-        
-        closeEditModal();
-        showSuccessMessage('Success!', `User "${formData.username}" has been updated successfully.`);
+      // Create the updated user object with the exact data from the form
+      const updatedUser: User = {
+        id: selectedUser.id,
+        username: formData.username,
+        email: formData.email,
+        role: formData.role
+      };
+      
+      // Update the users array - this should trigger a re-render
+      setUsers(prevUsers => prevUsers.map(u => u.id === selectedUser.id ? updatedUser : u));
+      
+      closeEditModal();
+      showSuccessMessage('Success!', `User "${formData.username}" has been updated successfully.`);
+    } else {
+      const errorData = await res.json();
+      console.error("Update failed:", errorData);
+      
+      // Check if it's an email already exists error
+      if (errorData.detail && errorData.detail.toLowerCase().includes('email')) {
+        setFormErrors({
+          ...formErrors,
+          email: 'This email is already registered'
+        });
       } else {
-        const errorData = await res.json();
-        console.error("Update failed:", errorData);
-        showErrorMessage('Update Failed', errorData.message || 'Failed to update user. Please try again.');
+        showErrorMessage('Update Failed', errorData.detail || errorData.message || 'Failed to update user. Please try again.');
       }
-    } catch (err) {
-      console.error("Error updating user:", err);
-      showErrorMessage('Error', 'Unable to update user. Please check your connection and try again.');
     }
-  };
+  } catch (err) {
+    console.error("Error updating user:", err);
+    showErrorMessage('Error', 'Unable to update user. Please check your connection and try again.');
+  }
+};
 
   const deleteUser = async (userId: string) => {
     const userToDelete = users.find(u => u.id === userId);
@@ -564,9 +660,11 @@ const UsersPage = () => {
           emptyMessage={selectedRole === "all" ? "No users found." : `No ${selectedRole === "superadmin" ? "super admin" : selectedRole} users found.`}
         />
 
-        {/* Create Modal */}
-        <SlideModal isOpen={isCreateModalOpen} onClose={closeCreateModal} title="Add New User">
-          <form onSubmit={handleCreateSubmit} className="p-6 space-y-4">
+     
+      {/* Create Modal */}
+      <SlideModal isOpen={isCreateModalOpen} onClose={closeCreateModal} title="Add New User">
+        <form onSubmit={handleCreateSubmit} className="p-6 space-y-4 h-full flex flex-col">
+          <div className="flex-1 space-y-4">
             <div>
               <label className="block text-sm font-medium mb-2">Username *</label>
               <input
@@ -576,7 +674,6 @@ const UsersPage = () => {
                 className={`w-full px-3 py-2 border rounded-lg ${
                   formErrors.username ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                 } focus:outline-none focus:ring-2`}
-                required
               />
               {formErrors.username && (
                 <p className="mt-1 text-sm text-red-600">{formErrors.username}</p>
@@ -592,7 +689,6 @@ const UsersPage = () => {
                 className={`w-full px-3 py-2 border rounded-lg ${
                   formErrors.email ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                 } focus:outline-none focus:ring-2`}
-                required
               />
               {formErrors.email && (
                 <p className="mt-1 text-sm text-red-600">{formErrors.email}</p>
@@ -600,16 +696,60 @@ const UsersPage = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Password *</label>
-              <input
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className={`w-full px-3 py-2 border rounded-lg ${
-                  formErrors.password ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                } focus:outline-none focus:ring-2`}
-                required
-              />
+              <div className="flex items-center gap-2 mb-2">
+                <label className="block text-sm font-medium">Password *</label>
+                <div className="group relative">
+                  <svg 
+                    className="w-4 h-4 text-gray-400 cursor-help" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      strokeWidth={2} 
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" 
+                    />
+                  </svg>
+                  <div className="invisible group-hover:visible absolute left-0 top-6 z-50 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg">
+                    <p className="font-semibold mb-2">Password must contain:</p>
+                    <ul className="space-y-1">
+                      <li>• At least 6 characters</li>
+                      <li>• One uppercase letter (A-Z)</li>
+                      <li>• One number (0-9)</li>
+                      <li>• One special character (!@#$%^&*)</li>
+                    </ul>
+                    <div className="absolute -top-1 left-4 w-2 h-2 bg-gray-900 transform rotate-45"></div>
+                  </div>
+                </div>
+              </div>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  className={`w-full px-3 py-2 pr-10 border rounded-lg ${
+                    formErrors.password ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  } focus:outline-none focus:ring-2`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                    </svg>
+                  )}
+                </button>
+              </div>
               {formErrors.password && (
                 <p className="mt-1 text-sm text-red-600">{formErrors.password}</p>
               )}
@@ -621,142 +761,162 @@ const UsersPage = () => {
                 value={formData.role}
                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                required
               >
                 <option value="admin">Admin</option>
                 <option value="superadmin">Super Admin</option>
               </select>
             </div>
+          </div>
 
-            <div className="flex justify-end pt-4">
-              <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                Create User
-              </Button>
+          {/* Action Buttons - Positioned at the bottom */}
+          <div className="flex pt-16 gap-4 mt-auto">
+            <button 
+              type="button"
+              onClick={closeCreateModal}
+              className="flex-1 font-medium text-sm py-2 text-center text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit"
+              className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 rounded-md text-sm"
+            >
+              Save
+            </button>
+          </div>
+        </form>
+      </SlideModal>
+
+       {/* Edit Modal */}
+      <SlideModal isOpen={isEditModalOpen} onClose={closeEditModal} title="Edit User">
+      <form onSubmit={handleEditSubmit} className="p-6 space-y-4 h-full flex flex-col">
+        <div className="flex-1 space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">Username *</label>
+            <input
+              type="text"
+              value={formData.username}
+              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+              className={`w-full px-3 py-2 border rounded-lg ${
+                formErrors.username ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+              } focus:outline-none focus:ring-2`}
+            />
+            {formErrors.username && (
+              <p className="mt-1 text-sm text-red-600">{formErrors.username}</p>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Email *</label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              className={`w-full px-3 py-2 border rounded-lg ${
+                formErrors.email ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+              } focus:outline-none focus:ring-2`}
+            />
+            {formErrors.email && (
+              <p className="mt-1 text-sm text-red-600">{formErrors.email}</p>
+            )}
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <label className="block text-sm font-medium">Password</label>
+              <div className="group relative">
+                <svg 
+                  className="w-4 h-4 text-gray-400 cursor-help" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth={2} 
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" 
+                  />
+                </svg>
+                <div className="invisible group-hover:visible absolute left-0 top-6 z-50 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg">
+                  <p className="font-semibold mb-2">Password must contain:</p>
+                  <ul className="space-y-1">
+                    <li>• At least 6 characters</li>
+                    <li>• One uppercase letter (A-Z)</li>
+                    <li>• One number (0-9)</li>
+                    <li>• One special character (!@#$%^&*)</li>
+                  </ul>
+                  <div className="absolute -top-1 left-4 w-2 h-2 bg-gray-900 transform rotate-45"></div>
+                </div>
+              </div>
             </div>
-          </form>
-        </SlideModal>
-
-        {/* Edit Modal */}
-        <SlideModal isOpen={isEditModalOpen} onClose={closeEditModal} title="Edit User">
-          <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Username *</label>
+            <div className="relative">
               <input
-                type="text"
-                value={formData.username}
-                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                className={`w-full px-3 py-2 border rounded-lg ${
-                  formErrors.username ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                } focus:outline-none focus:ring-2`}
-                required
-              />
-              {formErrors.username && (
-                <p className="mt-1 text-sm text-red-600">{formErrors.username}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Email *</label>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className={`w-full px-3 py-2 border rounded-lg ${
-                  formErrors.email ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                } focus:outline-none focus:ring-2`}
-                required
-              />
-              {formErrors.email && (
-                <p className="mt-1 text-sm text-red-600">{formErrors.email}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Password</label>
-              <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className={`w-full px-3 py-2 border rounded-lg ${
+                className={`w-full px-3 py-2 pr-10 border rounded-lg ${
                   formErrors.password ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                 } focus:outline-none focus:ring-2`}
                 placeholder="Leave empty to keep current password"
               />
-              {formErrors.password && (
-                <p className="mt-1 text-sm text-red-600">{formErrors.password}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Role *</label>
-              <select
-                value={formData.role}
-                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                required
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
               >
-                <option value="admin">Admin</option>
-                <option value="superadmin">Super Admin</option>
-              </select>
+                {showPassword ? (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                  </svg>
+                )}
+              </button>
             </div>
+            {formErrors.password && (
+              <p className="mt-1 text-sm text-red-600">{formErrors.password}</p>
+            )}
+          </div>
 
-            <div className="flex justify-end pt-4">
-              <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                Update User
-              </Button>
-            </div>
-          </form>
-        </SlideModal>
+          <div>
+            <label className="block text-sm font-medium mb-2">Role *</label>
+            <select
+              value={formData.role}
+              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="admin">Admin</option>
+              <option value="superadmin">Super Admin</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Action Buttons - Positioned at the bottom */}
+        <div className="flex pt-16 gap-4 mt-auto">
+          <button 
+            type="button"
+            onClick={closeEditModal}
+            className="flex-1 font-medium text-sm py-2 text-center text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+          >
+            Cancel
+          </button>
+          <button 
+            type="submit"
+            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 rounded-md text-sm"
+          >
+            Save
+          </button>
+        </div>
+      </form>
+    </SlideModal>
 
         {/* View Modal with Edit and Delete buttons */}
         <SlideModal isOpen={isViewModalOpen} onClose={closeViewModal} title="View User">
-          <div className="flex flex-col h-full">
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Username</label>
-                <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                  {formData.username}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Email</label>
-                <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                  {formData.email}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2">Role</label>
-                <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    formData.role === 'admin' ? 'bg-green-100 text-green-800' : 'bg-purple-100 text-purple-800'
-                  }`}>
-                    {formData.role === 'admin' ? 'Admin' : 'Super Admin'}
-                  </span>
-                </div>
-              </div>
-            </div>
-            
-            {/* Action Buttons */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 bg-white px-6 pb-6">
-              <Button
-                type="button"
-                onClick={handleDeleteFromView}
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                Delete
-              </Button>
-              <Button
-                type="button"
-                onClick={handleEditFromView}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                Edit
-              </Button>
-            </div>
-          </div>
+          <ViewModalContent />
         </SlideModal>
 
        {/* Delete Confirmation Modal */}

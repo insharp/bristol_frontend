@@ -785,11 +785,9 @@ const handleConfirmDelete = async () => {
   };
 
   const handleEditClick = () => {
-    setIsModalOpen(false);
-    setTimeout(() => {
-      setModalMode("edit");
-      setIsModalOpen(true);
-    }, 100);
+    // Just switch the mode directly - no timeout needed for seamless transition
+    setModalMode("edit");
+    // Modal stays open, just switches from view to edit mode
   };
 
   const getModalTitle = () => {
@@ -929,6 +927,7 @@ const handleConfirmDelete = async () => {
             onSubmit={handleSubmit}
             onEditClick={handleEditClick}
             onDeleteClick={handleDeleteFromView}
+            onCancel={closeModal} 
             permissions={permissions}
           />
         </SlideModal>
