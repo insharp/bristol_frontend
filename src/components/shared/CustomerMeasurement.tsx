@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { User, Building, Eye, Edit, Trash2, X } from "lucide-react";
 import ReusableTable from "@/components/ui/ReusableTable";
-import Button from "@/components/ui/button"; // Assuming this exists
+import Button from "@/components/ui/button";
 
 import { useCustomerMeasurement } from "@/app/hooks/useCustomerMeasurement";
 import { 
@@ -85,44 +85,42 @@ const CustomerMeasurement: React.FC<CustomerMeasurementProps> = ({
         setCorporateData(data);
       }
     } catch (err) {
-      // Error is already set by the hook
       console.error(`Failed to load ${activeFilter} measurements:`, err);
     }
   };
 
-  // Add after loadData function (around line 70)
-const getFilteredData = () => {
-  const data = activeFilter === 'individual' ? individualData : corporateData;
-  
-  if (!searchQuery) {
-    return data;
-  }
-  
-  const searchLower = searchQuery.toLowerCase();
-  
-  return data.filter(item => {
-    if (activeFilter === 'individual') {
-      const individualItem = item as IndividualMeasurement;
-      return (
-        individualItem.customer_name?.toLowerCase().includes(searchLower) ||
-        individualItem.product_name?.toLowerCase().includes(searchLower) ||
-        individualItem.customer_id?.toString().includes(searchQuery) ||
-        individualItem.product_id?.toString().includes(searchQuery) ||
-        individualItem.id?.toString().includes(searchQuery)
-      );
-    } else {
-      const corporateItem = item as CorporateMeasurement;
-      return (
-        corporateItem.customer_name?.toLowerCase().includes(searchLower) ||
-        corporateItem.product_name?.toLowerCase().includes(searchLower) ||
-        corporateItem.batch_name?.toLowerCase().includes(searchLower) ||
-        corporateItem.corporate_customer_id?.toString().includes(searchQuery) ||
-        corporateItem.product_id?.toString().includes(searchQuery) ||
-        corporateItem.id?.toString().includes(searchQuery)
-      );
+  const getFilteredData = () => {
+    const data = activeFilter === 'individual' ? individualData : corporateData;
+    
+    if (!searchQuery) {
+      return data;
     }
-  });
-};
+    
+    const searchLower = searchQuery.toLowerCase();
+    
+    return data.filter(item => {
+      if (activeFilter === 'individual') {
+        const individualItem = item as IndividualMeasurement;
+        return (
+          individualItem.customer_name?.toLowerCase().includes(searchLower) ||
+          individualItem.product_name?.toLowerCase().includes(searchLower) ||
+          individualItem.customer_id?.toString().includes(searchQuery) ||
+          individualItem.product_id?.toString().includes(searchQuery) ||
+          individualItem.id?.toString().includes(searchQuery)
+        );
+      } else {
+        const corporateItem = item as CorporateMeasurement;
+        return (
+          corporateItem.customer_name?.toLowerCase().includes(searchLower) ||
+          corporateItem.product_name?.toLowerCase().includes(searchLower) ||
+          corporateItem.batch_name?.toLowerCase().includes(searchLower) ||
+          corporateItem.corporate_customer_id?.toString().includes(searchQuery) ||
+          corporateItem.product_id?.toString().includes(searchQuery) ||
+          corporateItem.id?.toString().includes(searchQuery)
+        );
+      }
+    });
+  };
 
   // Table columns configuration
   const individualColumns = [
@@ -201,59 +199,107 @@ const getFilteredData = () => {
     setShowForm(true);
   };
 
-  // Updated handleDelete to open confirmation modal
   const handleDelete = (row: any) => {
     setItemToDelete(row);
     setIsDeleteModalOpen(true);
   };
 
-  // New function to confirm deletion
-const confirmDelete = async () => {
-  if (!itemToDelete) return;
+  //confirmDelete with comprehensive error handling
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
 
-  try {
-    if (activeFilter === 'individual') {
-      await deleteIndividualMeasurement(itemToDelete.customer_id, itemToDelete.product_id);
-    } else {
-      await deleteCorporateMeasurement(itemToDelete.id);
+    try {
+      if (activeFilter === 'individual') {
+        await deleteIndividualMeasurement(itemToDelete.customer_id, itemToDelete.product_id);
+      } else {
+        await deleteCorporateMeasurement(itemToDelete.id);
+      }
+      
+      await loadData();
+      
+      setIsDeleteModalOpen(false);
+      setItemToDelete(null);
+      setShowForm(false);
+      setSelectedItem(null);
+      
+      const itemName = getItemDisplayName(itemToDelete);
+      const measurementType = activeFilter === 'individual' ? 'Individual' : 'Corporate';
+      setTimeout(() => {
+        showSuccessMessage('Success!', `${measurementType} measurement for ${itemName} deleted successfully!`);
+      }, 100);
+      
+    } catch (error: any) {
+      console.error('Delete error:', error);
+      
+      setIsDeleteModalOpen(false);
+      setItemToDelete(null);
+      
+      const itemName = getItemDisplayName(itemToDelete);
+      const measurementType = activeFilter === 'individual' ? 'individual' : 'corporate';
+      
+      // Handle constraint errors (either from our hook transformation or original "Failed to fetch")
+      if ((error instanceof TypeError && error.message === 'Failed to fetch') || 
+          error.isConstraintError || 
+          (error.message && error.message.includes('Foreign key constraint violation'))) {
+        setTimeout(() => {
+          showErrorMessage(
+            'Cannot Delete Measurement',
+            `Cannot delete the ${measurementType} measurement for "${itemName}" because there are existing orders for it. Please cancel or delete these records first before deleting the measurement.`
+          );
+        }, 100);
+        return;
+      }
+
+    // Handle other potential errors
+    let errorTitle = 'Delete Failed';
+    let errorMessage = `Failed to delete the ${measurementType} measurement for "${itemName}".`;
+    
+    if (error.response?.status) {
+      const status = error.response.status;
+      
+      if (status === 409 || status === 400) {
+        errorTitle = 'Cannot Delete Measurement';
+        errorMessage = `Cannot delete the ${measurementType} measurement for "${itemName}" because there are existing orders for it. Please cancel or delete these records first before deleting the measurement.`;
+      } else if (status === 404) {
+        errorTitle = 'Not Found';
+        errorMessage = `The ${measurementType} measurement for "${itemName}" was not found. It may have already been deleted.`;
+      } else if (status === 403) {
+        errorTitle = 'Access Denied';
+        errorMessage = `You don't have permission to delete this ${measurementType} measurement.`;
+      } else if (status >= 500) {
+        errorTitle = 'Server Error';
+        errorMessage = 'A server error occurred while trying to delete the measurement. Please try again later.';
+      }
+    }
+    // Check for specific error messages from the API
+    else if (error.response?.data?.message || error.response?.data?.detail) {
+      const apiMessage = (error.response.data.message || error.response.data.detail).toLowerCase();
+      
+      if (apiMessage.includes('foreign key') || apiMessage.includes('constraint') || apiMessage.includes('referenced')) {
+        errorTitle = 'Cannot Delete Measurement';
+        errorMessage = `Cannot delete the ${measurementType} measurement for "${itemName}" because there are existing orders or appointments associated with this measurement. Please delete the related orders first, then try again.`;
+      } else {
+        errorMessage = error.response.data.message || error.response.data.detail;
+      }
     }
     
-    // Refresh data after successful deletion
-    await loadData();
-    
-    // Close both modals
-    setIsDeleteModalOpen(false);
-    setShowForm(false);
-    
-    // Show success message
-    const itemName = getItemDisplayName(itemToDelete);
-    const measurementType = activeFilter === 'individual' ? 'Individual' : 'Corporate';
-    showSuccessMessage('Success!', `${measurementType} measurement for ${itemName} deleted successfully!`);
-    
-    setItemToDelete(null);
-    setSelectedItem(null);
-    
-  } catch (err) {
-    console.error(`Failed to delete measurement:`, err);
-    showErrorMessage('Deletion Failed', 'Failed to delete measurement. Please try again.');
+    setTimeout(() => {
+      showErrorMessage(errorTitle, errorMessage);
+    }, 100);
   }
 };
 
-  // New handlers for actions from view modal
   const handleEditFromView = () => {
     if (!edit || !selectedItem) return;
     setFormMode('edit');
-    // Keep the form open, just change the mode
   };
 
   const handleDeleteFromView = () => {
     if (!deleteEnabled || !selectedItem) return;
-    
-    // Keep the view form open, just show the delete confirmation on top
     setItemToDelete(selectedItem);
     setIsDeleteModalOpen(true);
-    // Remove the setShowForm(false) line
   };
+
   const handleAdd = () => {
     setSelectedItem(null);
     setFormMode('add');
@@ -261,9 +307,8 @@ const confirmDelete = async () => {
   };
 
   const handleFormSuccess = () => {
-    loadData(); // Refresh data after form submission
+    loadData();
     
-    // Show success message based on form mode
     if (formMode === 'add') {
       const measurementType = activeFilter === 'individual' ? 'Individual' : 'Corporate';
       showSuccessMessage('Success!', `${measurementType} measurement has been created successfully!`);
@@ -282,10 +327,9 @@ const confirmDelete = async () => {
   const handleFilterChange = (filter: FilterType) => {
     setActiveFilter(filter);
     setSearchQuery("");
-    clearError(); // Clear any existing errors
+    clearError();
   };
 
-  // Helper function to get display name for delete confirmation
   const getItemDisplayName = (item: any) => {
     if (activeFilter === 'individual') {
       return item.customer_name || `Customer ID: ${item.customer_id}`;
@@ -306,59 +350,59 @@ const confirmDelete = async () => {
         )}
       </div>
 
-       {/* Filter Toggle and Search Bar */}
-        <div className="flex justify-between items-center">
-          <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg w-fit">
-            <button
-              onClick={() => handleFilterChange('individual')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                activeFilter === 'individual'
-                  ? 'bg-white text-blue-600 shadow-sm ring-1 ring-blue-200'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-            >
-              <User className="w-4 h-4" />
-              Individual
-            </button>
-            <button
-              onClick={() => handleFilterChange('corporate')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                activeFilter === 'corporate'
-                  ? 'bg-white text-blue-600 shadow-sm ring-1 ring-blue-200'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-            >
-              <Building className="w-4 h-4" />
-              Corporate
-            </button>
-          </div>
-
-          {/* Search Bar */}
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <input
-              type="text"
-              placeholder={`Search `}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-80"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
-          </div>
+      {/* Filter Toggle and Search Bar */}
+      <div className="flex justify-between items-center">
+        <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg w-fit">
+          <button
+            onClick={() => handleFilterChange('individual')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+              activeFilter === 'individual'
+                ? 'bg-white text-blue-600 shadow-sm ring-1 ring-blue-200'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+            }`}
+          >
+            <User className="w-4 h-4" />
+            Individual
+          </button>
+          <button
+            onClick={() => handleFilterChange('corporate')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+              activeFilter === 'corporate'
+                ? 'bg-white text-blue-600 shadow-sm ring-1 ring-blue-200'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+            }`}
+          >
+            <Building className="w-4 h-4" />
+            Corporate
+          </button>
         </div>
+
+        {/* Search Bar */}
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <input
+            type="text"
+            placeholder="Search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-80"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Error Display */}
       {error && (
@@ -395,7 +439,7 @@ const confirmDelete = async () => {
         minColumnWidth="120px"
       />
 
-      {/* Slide-in Form with Enhanced View Mode */}
+      {/* Slide-in Form */}
       <MeasurementSlideForm
         isOpen={showForm}
         onClose={handleFormClose}
@@ -403,10 +447,10 @@ const confirmDelete = async () => {
         filterType={activeFilter}
         selectedItem={selectedItem}
         onSuccess={handleFormSuccess}
-        // Pass the action handlers for view mode
         onEditFromView={edit ? handleEditFromView : undefined}
         onDeleteFromView={deleteEnabled ? handleDeleteFromView : undefined}
       />
+
       {/* Delete Confirmation Modal */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 bg-blue-50/70 bg-opacity-50 flex items-center justify-center z-[10000]">
@@ -448,7 +492,7 @@ const confirmDelete = async () => {
         </div>
       )}
 
-      {/* Message Modal for Success/Error Messages */}
+      {/* Message Modal */}
       {messageModal.isOpen && (
         <div className="fixed inset-0 bg-blue-50/70 bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">

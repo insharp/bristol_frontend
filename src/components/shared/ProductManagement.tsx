@@ -389,7 +389,7 @@ const ProductManagement: React.FC<ProductManagementProps> = ({
     { 
       key: "base_price", 
       label: "Base Price", 
-      width: "130px",
+      width: "160px",
       render: (value: number) => (
         <span className="font-medium">
           Rs. {value?.toFixed(2) || '0.00'}
@@ -566,13 +566,14 @@ const ProductManagement: React.FC<ProductManagementProps> = ({
   };
 
   // New handlers for actions from view modal
-  const handleEditFromView = () => {
-    if (!permissions.canEdit || !selectedProduct) return;
-    setIsViewModalOpen(false);
-    setTimeout(() => {
-      setIsEditModalOpen(true);
-    }, 100);
-  };
+const handleEditFromView = () => {
+  if (!permissions.canEdit || !selectedProduct) return;
+  
+  // Just switch the modal states directly - no timeout needed
+  setIsViewModalOpen(false);
+  setIsEditModalOpen(true);
+  // Form data is already set from when the view modal was opened
+};
 
   const handleDeleteFromView = () => {
     if (!permissions.canDelete || !selectedProduct) return;
@@ -788,37 +789,47 @@ const ProductManagement: React.FC<ProductManagementProps> = ({
             </div>
 
             {/* Customer Selection for Create - Show when toggle is on */}
-            {assignCustomer && (
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Customer {requireCustomer ? '*' : ''}
-                </label>
-                
-                <select
-                  value={formData.customer_id}
-                  onChange={(e) => setFormData({ ...formData, customer_id: e.target.value })}
-                  className={`w-full px-3 py-2 border rounded-lg ${
-                    formErrors.customer_id ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                  } focus:outline-none focus:ring-2`}
-                  required={requireCustomer && assignCustomer}
-                  disabled={loadingCustomers}
-                >
-                  <option value="">Select Customer</option>
-                  {customers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.id} - {getCustomerName(customer)}
-                    </option>
-                  ))}
-                </select>
-                {formErrors.customer_id && (
-                  <p className="mt-1 text-sm text-red-600">{formErrors.customer_id}</p>
-                )}
-                {loadingCustomers && (
-                  <p className="mt-1 text-sm text-gray-500">Loading customers...</p>
-                )}
-              </div>
-            )}
-                      
+              {assignCustomer && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Customer ID {requireCustomer ? '*' : ''}
+                  </label>
+                  
+                  <select
+                    value={formData.customer_id}
+                    onChange={(e) => setFormData({ ...formData, customer_id: e.target.value })}
+                    className={`w-full px-3 py-2 border rounded-lg ${
+                      formErrors.customer_id ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                    } focus:outline-none focus:ring-2`}
+                    required={requireCustomer && assignCustomer}
+                    disabled={loadingCustomers}
+                  >
+                    {/* Conditional rendering based on whether customers exist */}
+                    {formData.customer_id === "" && (
+                      customers.length === 0 ? (
+                        // No customers: show as regular option
+                        <option value="">Select Customer ID</option>
+                      ) : (
+                        // Has customers: show as hidden placeholder
+                        <option value="" disabled hidden>Select Customer ID</option>
+                      )
+                    )}
+                    {customers.map((customer) => (
+                      <option key={customer.id} value={customer.id}>
+                        {customer.id} - {getCustomerName(customer)}
+                      </option>
+                    ))}
+                  </select>
+                  {formErrors.customer_id && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.customer_id}</p>
+                  )}
+                  {loadingCustomers && (
+                    <p className="mt-1 text-sm text-gray-500">Loading customers...</p>
+                  )}
+                </div>
+              )}  
+
+
             {/* Category Name */}
             <div>
               <label className="block text-sm font-medium mb-2">Category Name *</label>
@@ -829,7 +840,6 @@ const ProductManagement: React.FC<ProductManagementProps> = ({
                 className={`w-full px-3 py-2 border rounded-lg ${
                   formErrors.category_name ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                 } focus:outline-none focus:ring-2`}
-                required
                 placeholder="e.g., Blazers, T-Shirts"
               />
               {formErrors.category_name && (
@@ -854,7 +864,6 @@ const ProductManagement: React.FC<ProductManagementProps> = ({
                     className={`w-full pl-9 pr-3 py-2 border rounded-lg ${
                       formErrors.base_price ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                     } focus:outline-none focus:ring-2`}
-                    required
                     placeholder="00.00"
                   />
                 </div>
@@ -874,7 +883,6 @@ const ProductManagement: React.FC<ProductManagementProps> = ({
                   formErrors.description ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                 } focus:outline-none focus:ring-2`}
                 rows={3}
-                required
                 placeholder="Detailed description of the product..."
               />
               {formErrors.description && (
@@ -892,7 +900,6 @@ const ProductManagement: React.FC<ProductManagementProps> = ({
                 className={`w-full px-3 py-2 border rounded-lg ${
                   formErrors.style_option ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                 } focus:outline-none focus:ring-2`}
-                required
                 placeholder="Enter style option"
               />
               {formErrors.style_option && (
@@ -912,11 +919,21 @@ const ProductManagement: React.FC<ProductManagementProps> = ({
               />
             </div>
 
-            <div className="flex justify-end pt-4">
-              <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                Create Product
-              </Button>
-            </div>
+           <div className="flex pt-16 gap-4 mt-16">
+            <button 
+              type="button"
+              onClick={closeCreateModal}
+              className="flex-1 font-medium text-sm py-2 text-center hover:bg-gray-50 rounded-md transition-colors text-gray-700"
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 rounded-md text-sm"
+            >
+              Save
+            </button>
+          </div>
           </form>
         </SlideModal>
 
@@ -986,7 +1003,6 @@ const ProductManagement: React.FC<ProductManagementProps> = ({
                 className={`w-full px-3 py-2 border rounded-lg ${
                   formErrors.category_name ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                 } focus:outline-none focus:ring-2`}
-                required
                 placeholder="e.g., Blazers, T-Shirts"
               />
               {formErrors.category_name && (
@@ -1011,7 +1027,6 @@ const ProductManagement: React.FC<ProductManagementProps> = ({
                     className={`w-full pl-9 pr-3 py-2 border rounded-lg ${
                       formErrors.base_price ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                     } focus:outline-none focus:ring-2`}
-                    required
                     placeholder="00.00"
                   />
                 </div>
@@ -1031,7 +1046,6 @@ const ProductManagement: React.FC<ProductManagementProps> = ({
                   formErrors.description ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                 } focus:outline-none focus:ring-2`}
                 rows={3}
-                required
                 placeholder="Detailed description of the product..."
               />
               {formErrors.description && (
@@ -1049,7 +1063,6 @@ const ProductManagement: React.FC<ProductManagementProps> = ({
                 className={`w-full px-3 py-2 border rounded-lg ${
                   formErrors.style_option ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                 } focus:outline-none focus:ring-2`}
-                required
                 placeholder="e.g., Color: Blue, Material: Cotton"
               />
               {formErrors.style_option && (
@@ -1069,89 +1082,120 @@ const ProductManagement: React.FC<ProductManagementProps> = ({
               />
             </div>
 
-            <div className="flex justify-end pt-4">
-              <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-                Update Product
-              </Button>
-            </div>
+            <div className="flex pt-16 gap-4 mt-16">
+            <button 
+              type="button"
+              onClick={closeEditModal}
+              className="flex-1 font-medium text-sm py-2 text-center hover:bg-gray-50 rounded-md transition-colors text-gray-700"
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit" 
+              className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 rounded-md text-sm"
+            >
+              Save
+            </button>
+          </div>
           </form>
         </SlideModal>
 
-        {/* View Modal with Edit and Delete buttons */}
+     {/* View Modal with Edit and Delete buttons */}
         <SlideModal isOpen={isViewModalOpen} onClose={closeViewModal} title="View Product">
-          <div className="flex flex-col h-full">
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {/* Customer Information Display */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Assigned Customer
-                </label>
-                <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                  {getCustomerDisplayForView(selectedProduct?.customer_id)}
-                </div>
+          <div className="p-6 space-y-4">
+            {/* Customer Information Display */}
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Assigned Customer
+              </label>
+              <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                {getCustomerDisplayForView(selectedProduct?.customer_id)}
               </div>
-                      
-              {/* Category Name */}
-              <div>
-                <label className="block text-sm font-medium mb-2">Category Name</label>
-                <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                  {formData.category_name}
-                </div>
+            </div>
+                    
+            {/* Category Name */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Category Name</label>
+              <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                {formData.category_name}
               </div>
+            </div>
 
-              {/* Base Price */}
-              <div>
-                <label className="block text-sm font-medium mb-2">Base Price</label>
-                <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                  Rs. {parseFloat(formData.base_price || '0').toFixed(2)}
-                </div>
+            {/* Base Price */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Base Price</label>
+              <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                Rs. {parseFloat(formData.base_price || '0').toFixed(2)}
               </div>
+            </div>
 
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-medium mb-2">Description</label>
-                <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 min-h-[80px]">
-                  {formData.description}
-                </div>
+            {/* Description */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Description</label>
+              <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 min-h-[80px]">
+                {formData.description}
               </div>
+            </div>
 
-              {/* Style Option */}
-              <div>
-                <label className="block text-sm font-medium mb-2">Style Option</label>
-                <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                  {formData.style_option}
-                </div>
+            {/* Style Option */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Style Option</label>
+              <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                {formData.style_option}
               </div>
+            </div>
 
-              {/* Comments */}
-              <div>
-                <label className="block text-sm font-medium mb-2">Comments</label>
-                <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 min-h-[80px]">
-                  {formData.comments || 'No comments'}
-                </div>
+            {/* Comments */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Comments</label>
+              <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 min-h-[80px]">
+                {formData.comments || 'No comments'}
               </div>
             </div>
             
-            {/* Action Buttons */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 bg-white px-6 pb-6">
-              {permissions.canDelete && (
-                <Button 
-                  type="button"
-                  onClick={handleDeleteFromView}
-                  className="bg-red-600 hover:bg-red-700 text-white"
-                >
-                  Delete
-                </Button>
-              )}
-              {permissions.canEdit && (
-                <Button 
-                  type="button"
-                  onClick={handleEditFromView}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  Edit
-                </Button>
+            {/* Action Buttons - Exactly like CustomerManagement */}
+            <div className="flex pt-16 gap-4 mt-16">
+              {permissions.canDelete && permissions.canEdit ? (
+                // Both buttons present - use 50/50 flex layout
+                <>
+                  <button 
+                    type="button"
+                    onClick={handleDeleteFromView}
+                    className="flex-1 font-medium text-sm py-2 text-center"
+                    style={{ color: 'var(--negative-color, #D83A52)' }}
+                  >
+                    Delete
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={handleEditFromView}
+                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 rounded-md text-sm"
+                  >
+                    Edit
+                  </button>
+                </>
+              ) : (
+                // Single button - use standard layout for compatibility
+                <div className="flex justify-end gap-3">
+                  {permissions.canDelete && (
+                    <button 
+                      type="button"
+                      onClick={handleDeleteFromView}
+                      className="text-red-500 hover:text-red-600 font-medium text-sm px-4 py-2 hover:bg-red-50 rounded-md transition-colors"
+                    >
+                      Delete
+                    </button>
+                  )}
+                  {permissions.canEdit && (
+                    <button 
+                      type="button"
+                      onClick={handleEditFromView}
+                      className="bg-blue-500 hover:bg-blue-600 text-white font-medium px-6 py-2 rounded-md text-sm"
+                    >
+                      Edit
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           </div>

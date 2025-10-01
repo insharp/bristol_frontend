@@ -437,6 +437,9 @@ const [selectedCustomerForProducts, setSelectedCustomerForProducts] = useState<n
 
   // Auto-fill unit price when product is selected
 useEffect(() => {
+  // Only auto-fill in create mode
+  if (modalMode !== 'create') return;
+  
   if (formData.productId && 
       formData.productId !== 'custom' && 
       productFilterType === ProductFilterType.DEFAULT) { 
@@ -453,10 +456,14 @@ useEffect(() => {
       unitPrice: ''
     }));
   }
-}, [formData.productId, productFilterType, getProductById]);
+}, [formData.productId, productFilterType, getProductById, modalMode]);
 
-  // Auto-fill unit price for bulk default orders
-  useEffect(() => {
+
+    // Auto-fill unit price for bulk default orders
+useEffect(() => {
+    // Only auto-fill in create mode
+    if (modalMode !== 'create') return;
+    
     if (bulkDefaultFormData.productId) {
       const selectedProduct = getProductById(parseInt(bulkDefaultFormData.productId));
       if (selectedProduct) {
@@ -466,7 +473,7 @@ useEffect(() => {
         }));
       }
     }
-  }, [bulkDefaultFormData.productId, getProductById]);
+  }, [bulkDefaultFormData.productId, getProductById, modalMode]);
 
   // Load orders on component mount and tab change
   useEffect(() => {
@@ -481,6 +488,9 @@ useEffect(() => {
 
 
 useEffect(() => {
+  // Only auto-fill in create mode
+  if (modalMode !== 'create') return;
+  
   // Only auto-fill unit price when a DEFAULT product is selected (not custom products)
   if (bulkCustomFormData.productId && 
       bulkCustomFormData.productId !== 'custom' && 
@@ -492,15 +502,14 @@ useEffect(() => {
         unitPrice: selectedProduct.base_price.toString()
       }));
     }
-  } else if ((bulkCustomFormData.productId === 'custom' || bulkProductFilterType === ProductFilterType.CUSTOM) && 
-             modalMode === "create") { 
+  } else if (bulkCustomFormData.productId === 'custom' || bulkProductFilterType === ProductFilterType.CUSTOM) {
     // Clear unit price for custom products - user must enter manually
     setBulkCustomFormData(prev => ({
       ...prev,
       unitPrice: ''
     }));
   }
-}, [bulkCustomFormData.productId, bulkProductFilterType, getProductById, modalMode]); 
+}, [bulkCustomFormData.productId, bulkProductFilterType, getProductById, modalMode]);
 
 // Fetch available sizes when product changes in bulk default form
 useEffect(() => {
@@ -775,6 +784,7 @@ const addSizeQuantity = () => {
       status: order.status,
       sizeQuantities
     });
+    getAvailableSizesForProduct(order.ProductID);
   }
 };
   // Modal handlers
@@ -1082,24 +1092,36 @@ const handleCreateOrder = async () => {
     }
   };
 
- const handleDeleteOrder = async (orderId: number, customerIdDisplay: string) => {
-    try {
-      if (activeTab === 'single') {
-        await deleteSingleOrder(orderId);
-        showSuccessMessage('Success!', `Order for Customer ID: ${customerIdDisplay} has been deleted.`);
-      }else if (activeTab === 'bulk') {
-      await deleteBulkCustomOrder(orderId);
-      showSuccessMessage('Success!', `Bulk custom order for Bulk ID: ${customerIdDisplay} has been deleted.`);
-    } else if (activeTab === 'default') {
-        await deleteBulkDefaultOrder(orderId);
-       showSuccessMessage('Success!', `Default order for Customer ID: ${customerIdDisplay} has been deleted.`);
+    const handleDeleteOrder = async (orderId: number, customerIdDisplay: string) => {
+      try {
+        if (activeTab === 'single') {
+          await deleteSingleOrder(orderId);
+          showSuccessMessage('Success!', `Order for Customer ID: ${customerIdDisplay} has been deleted.`);
+        } else if (activeTab === 'bulk') {
+          await deleteBulkCustomOrder(orderId);
+          showSuccessMessage('Success!', `Bulk custom order for Bulk ID: ${customerIdDisplay} has been deleted.`);
+        } else if (activeTab === 'default') {
+          await deleteBulkDefaultOrder(orderId);
+          showSuccessMessage('Success!', `Default order for Customer ID: ${customerIdDisplay} has been deleted.`);
+        }
+        await loadOrders();
+      } catch (error: any) {
+        // TEMPORARY: Log everything to see what we're actually getting
+        console.log('=== FULL ERROR ANALYSIS ===');
+        console.log('Error object:', error);
+        console.log('Error constructor:', error.constructor.name);
+        console.log('Error status:', error.response?.status);
+        console.log('Error response:', error.response);
+        console.log('Response data:', error.response?.data);
+        console.log('Response text:', error.response?.statusText);
+        
+        // For now, just show the foreign key message since you verified it
+        showErrorMessage(
+          'Cannot Delete Order',
+          'Cannot delete this order because there are existing appointments scheduled for it. Please cancel or delete these records first before deleting the order.'
+        );
       }
-      await loadOrders();
-    } catch (error) {
-      console.error('Failed to delete order:', error);
-      showErrorMessage('Deletion Failed', 'Failed to delete order');
-    }
-  };
+    };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1230,7 +1252,7 @@ const getFilteredOrders = () => {
       key: 'unitprice',
       label: 'Unit Price',
       render: (value: number) => `Rs.${value.toFixed(2)}`,
-      width: '120px'
+      width: '150px'
     },
     {
       key: 'status',
@@ -1304,7 +1326,7 @@ const getFilteredOrders = () => {
     {
     key: 'sizes',
     label: 'Size',
-    width: '110px',
+    width: '150px',
     render: (value: any, row: any) => {
       const sizes = Object.keys(row.quantity_by_size);
       return sizes.join(', ');
@@ -1323,7 +1345,7 @@ const getFilteredOrders = () => {
       key: 'unitprice',
       label: 'Unit Price',
       render: (value: number) => `Rs.${value.toFixed(2)}`,
-      width: '120px'
+      width: '150px'
     },
     {
       key: 'status',
@@ -1438,7 +1460,7 @@ const getBulkCustomTableColumns = () => [
     key: 'unit_price',
     label: 'Unit_Price',
     render: (value: number) => `Rs.${value.toFixed(2)}`,
-    width: '120px'
+    width: '150px'
   },
  
   {
@@ -1663,29 +1685,30 @@ const getLoadingState = () => {
               <>
                 {/* Customer Selection */}
                 <div>
-                  <label className="block text-sm font-medium mb-2">Customer ID *</label>
-                  <select
-                    value={formData.customerId}
-                    onChange={(e) => handleInputChange('customerId', e.target.value)}
-                    className={`w-full px-3 py-2 border rounded-lg ${
-                      formErrors.customerId ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                    } focus:outline-none focus:ring-2`}
-                    disabled={modalMode === "view" || customersLoading}
-                    required
-                  >
-                    <option value="">Select Customer ID</option>
-                    {customers
-                    .filter((customer) => customer.customer_type === 'individual')
-                    .map((customer) => (
-                     <option key={customer.id} value={customer.id}>
-                      {customer.id} - {getCustomerDisplayName(customer)}
-                    </option>
-                    ))}
-                  </select>
-                  {formErrors.customerId && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.customerId}</p>
-                  )}
-                </div>
+                    <label className="block text-sm font-medium mb-2">Customer ID *</label>
+                    <select
+                      value={formData.customerId}
+                      onChange={(e) => handleInputChange('customerId', e.target.value)}
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                        formErrors.customerId ? 'border-red-500' : 'border-gray-300'
+                      }`}
+                      disabled={modalMode === "view" || modalMode === "edit" || customersLoading}
+                      style={modalMode === "edit" ? { backgroundColor: '#f9fafb' } : {}}
+                     
+                    >
+                      <option value="" disabled hidden>Select Customer ID</option>
+                      {customers
+                        .filter((customer) => customer.customer_type === 'individual')
+                        .map((customer) => (
+                          <option key={customer.id} value={customer.id}>
+                            {customer.id} - {getCustomerDisplayName(customer)}
+                          </option>
+                        ))}
+                    </select>
+                    {formErrors.customerId && (
+                      <p className="mt-1 text-sm text-red-600">{formErrors.customerId}</p>
+                    )}
+                  </div>
                 {/* Order Type - VIEW ONLY */}
                 <div>
                   <label className="block text-sm font-medium mb-2">Order Type</label>
@@ -1698,36 +1721,41 @@ const getLoadingState = () => {
                 {/* Product Type Selection - SINGLE ORDER ONLY */}
                 <div>
                   <label className="block text-sm font-medium mb-2">Product Type *</label>
-                  <select
-                    value={productFilterType}
-                    onChange={(e) => {
-                      const newType = e.target.value as ProductFilterType;
-                      setProductFilterType(newType);
-                      handleInputChange('productId', '');
-                      
-                      // Automatically use the selected customer for custom products
-                      if (newType === ProductFilterType.CUSTOM && formData.customerId) {
-                        setSelectedCustomerForProducts(parseInt(formData.customerId));
-                      } else if (newType === ProductFilterType.DEFAULT) {
-                        setSelectedCustomerForProducts(null);
-                      }
-                    }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    disabled={modalMode === "view"}
-                  >
-                    {PRODUCT_FILTER_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
+                  {modalMode === "view" || modalMode === "edit" ? (
+                    <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                      {productFilterType === ProductFilterType.DEFAULT ? 'Default Products' : 'Custom Products'}
+                    </div>
+                  ) : (
+                    <select
+                      value={productFilterType}
+                      onChange={(e) => {
+                        const newType = e.target.value as ProductFilterType;
+                        setProductFilterType(newType);
+                        handleInputChange('productId', '');
+                        
+                        // Automatically use the selected customer for custom products
+                        if (newType === ProductFilterType.CUSTOM && formData.customerId) {
+                          setSelectedCustomerForProducts(parseInt(formData.customerId));
+                        } else if (newType === ProductFilterType.DEFAULT) {
+                          setSelectedCustomerForProducts(null);
+                        }
+                      }}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {PRODUCT_FILTER_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
 
                {/* Product Category - SINGLE ORDER ONLY */}
-                <div>
+              <div>
                   <label className="block text-sm font-medium mb-2">Product Category *</label>
-                  {modalMode === "view" ? (
+                  {modalMode === "view" || modalMode === "edit" ? (
                     <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
                       {(() => {
                         if (formData.productId === '0' || formData.productId === 'custom') {
@@ -1742,13 +1770,13 @@ const getLoadingState = () => {
                       <select
                         value={formData.productId}
                         onChange={(e) => handleInputChange('productId', e.target.value)}
-                        className={`w-full px-3 py-2 border rounded-lg ${
-                          formErrors.productId ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                        } focus:outline-none focus:ring-2`}
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                          formErrors.productId ? 'border-red-500' : 'border-gray-300'
+                        }`}
                         disabled={productsLoading || (productFilterType === ProductFilterType.CUSTOM && !formData.customerId)}
-                        required
+                       
                       >
-                        <option value="">
+                        <option value="" disabled hidden>
                           {productFilterType === ProductFilterType.CUSTOM && !formData.customerId 
                             ? "Select customer first" 
                             : "Select Product"
@@ -1757,16 +1785,15 @@ const getLoadingState = () => {
                         {products
                           .filter((product) => {
                             if (productFilterType === ProductFilterType.DEFAULT) {
-                              return !product.customer_id; // Default products
+                              return !product.customer_id;
                             } else if (productFilterType === ProductFilterType.CUSTOM) {
-                              // Use the customer selected for the order
                               return product.customer_id === parseInt(formData.customerId);
                             }
                             return true;
                           })
                           .map((product) => (
                             <option key={product.id} value={product.id}>
-                              {product.category_name} {product.customer_id ? '(Custom)' : ''}
+                              {product.id} - {product.category_name} {product.customer_id ? '(Custom)' : ''}
                             </option>
                           ))
                         }
@@ -1776,7 +1803,7 @@ const getLoadingState = () => {
                       )}
                     </>
                   )}
-                </div>
+</div>
                 {/* Quantity */}
                 <div>
                   <label className="block text-sm font-medium mb-2">Quantity *</label>
@@ -1790,7 +1817,7 @@ const getLoadingState = () => {
                     } focus:outline-none focus:ring-2`}
                     placeholder="Enter quantity"
                     readOnly={modalMode === "view"}
-                    required
+                    
                   />
                   {formErrors.quantity && (
                     <p className="mt-1 text-sm text-red-600">{formErrors.quantity}</p>
@@ -1815,7 +1842,7 @@ const getLoadingState = () => {
                     } focus:outline-none focus:ring-2`}
                     placeholder="00.00"
                     readOnly={modalMode === "view"}
-                    required
+                   
                   />
                 </div>
                 {formErrors.unitPrice && (
@@ -1917,26 +1944,26 @@ const getLoadingState = () => {
           // Bulk Custom Order Form
           <>
             {/* Bulk ID */}
-            <div>
-             <label className="block text-sm font-medium mb-2">Bulk ID *</label>
+                      <div>
+              <label className="block text-sm font-medium mb-2">Bulk ID *</label>
               <select
                 value={bulkCustomFormData.bulkId}
                 onChange={(e) => handleBulkCustomInputChange('bulkId', e.target.value)}
-                className={`w-full px-3 py-2 border rounded-lg ${
-                  formErrors.bulkId ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                } focus:outline-none focus:ring-2`}
-                disabled={modalMode === "view" || bulkIdsLoading}
-                required
+                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                  formErrors.bulkId ? 'border-red-500' : 'border-gray-300'
+                }`}
+                disabled={modalMode === "view" || modalMode === "edit" || bulkIdsLoading}
+                style={modalMode === "edit" ? { backgroundColor: '#f9fafb' } : {}}
+             
               >
-                <option value="">Select Bulk ID</option>
+                <option value="" disabled hidden>Select Bulk ID</option>
                 {bulkIds.map((bulkData) => {
-                  // Get the customer data using the corporate_customer_id
                   const customer = getCustomerById(bulkData.corporate_customer_id);
                   const customerName = customer ? (customer.company_name || getCustomerDisplayName(customer)) : `Customer ID: ${bulkData.corporate_customer_id}`;
                   
                   return (
                     <option key={bulkData.id} value={bulkData.id}>
-                       {bulkData.id} - {customerName} ({bulkData.batch_name || 'No Batch Name'})
+                      {bulkData.id} - {customerName} ({bulkData.batch_name || 'No Batch Name'})
                     </option>
                   );
                 })}
@@ -1953,39 +1980,44 @@ const getLoadingState = () => {
             </div>
 
            {/* Product Type Selection */}
-            <div>
+           <div>
               <label className="block text-sm font-medium mb-2">Product Type *</label>
-              <select
-                value={bulkProductFilterType}
-                onChange={(e) => {
-                  const newType = e.target.value as ProductFilterType;
-                  setBulkProductFilterType(newType);
-                  handleBulkCustomInputChange('productId', '');
-                  
-                  if (newType === ProductFilterType.CUSTOM && bulkCustomFormData.bulkId && bulkIds.length > 0) {
-                    const selectedBulkData = bulkIds.find(bulk => bulk.id.toString() === bulkCustomFormData.bulkId);
-                    if (selectedBulkData) {
-                      setSelectedCustomerForBulkProducts(selectedBulkData.corporate_customer_id);
+              {modalMode === "view" || modalMode === "edit" ? (
+                <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                  {bulkProductFilterType === ProductFilterType.DEFAULT ? 'Default Products' : 'Custom Products'}
+                </div>
+              ) : (
+                <select
+                  value={bulkProductFilterType}
+                  onChange={(e) => {
+                    const newType = e.target.value as ProductFilterType;
+                    setBulkProductFilterType(newType);
+                    handleBulkCustomInputChange('productId', '');
+                    
+                    if (newType === ProductFilterType.CUSTOM && bulkCustomFormData.bulkId && bulkIds.length > 0) {
+                      const selectedBulkData = bulkIds.find(bulk => bulk.id.toString() === bulkCustomFormData.bulkId);
+                      if (selectedBulkData) {
+                        setSelectedCustomerForBulkProducts(selectedBulkData.corporate_customer_id);
+                      }
+                    } else if (newType === ProductFilterType.DEFAULT) {
+                      setSelectedCustomerForBulkProducts(null);
                     }
-                  } else if (newType === ProductFilterType.DEFAULT) {
-                    setSelectedCustomerForBulkProducts(null);
-                  }
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                disabled={modalMode === "view"}
-              >
-                {PRODUCT_FILTER_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {PRODUCT_FILTER_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
           {/* Product Category Selection */}
-          <div>
+         <div>
             <label className="block text-sm font-medium mb-2">Product Category *</label>
-            {modalMode === "view" ? (
+            {modalMode === "view" || modalMode === "edit" ? (
               <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
                 {(() => {
                   const bulkData = bulkIds.find(bulk => bulk.id.toString() === bulkCustomFormData.bulkId);
@@ -2001,13 +2033,13 @@ const getLoadingState = () => {
                 <select
                   value={bulkCustomFormData.productId}
                   onChange={(e) => handleBulkCustomInputChange('productId', e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg ${
-                    formErrors.productId ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                  } focus:outline-none focus:ring-2`}
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                    formErrors.productId ? 'border-red-500' : 'border-gray-300'
+                  }`}
                   disabled={productsLoading || (bulkProductFilterType === ProductFilterType.CUSTOM && !bulkCustomFormData.bulkId)}
-                  required
+            
                 >
-                  <option value="">
+                  <option value="" disabled hidden>
                     {bulkProductFilterType === ProductFilterType.CUSTOM && !bulkCustomFormData.bulkId 
                       ? "Select bulk ID first" 
                       : "Select Product"
@@ -2028,7 +2060,7 @@ const getLoadingState = () => {
                     })
                     .map((product) => (
                       <option key={product.id} value={product.id}>
-                        {product.category_name} {product.customer_id ? '(Custom)' : ''}
+                        {product.id} - {product.category_name} {product.customer_id ? '(Custom)' : ''}
                       </option>
                     ))
                   }
@@ -2039,15 +2071,6 @@ const getLoadingState = () => {
               </>
             )}
           </div>
-         
-           {/* Order Type - VIEW ONLY */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Order Type</label>
-              <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                {bulkCustomFormData.orderType === 'bulk' ? 'Corporate' : 'Individual'}
-              </div>
-            </div>
-
             {/* Quantity */}
             <div>
               <label className="block text-sm font-medium mb-2">Quantity *</label>
@@ -2061,7 +2084,7 @@ const getLoadingState = () => {
                 } focus:outline-none focus:ring-2`}
                 placeholder="Enter quantity"
                 readOnly={modalMode === "view"}
-                required
+           
               />
               {formErrors.quantity && (
                 <p className="mt-1 text-sm text-red-600">{formErrors.quantity}</p>
@@ -2086,7 +2109,7 @@ const getLoadingState = () => {
               } focus:outline-none focus:ring-2`}
               placeholder="00.00"
               readOnly={modalMode === "view"}
-              required
+            
             />
           </div>
           {formErrors.unitPrice && (
@@ -2194,16 +2217,17 @@ const getLoadingState = () => {
                   <select
                     value={bulkDefaultFormData.customerId}
                     onChange={(e) => handleBulkDefaultInputChange('customerId', e.target.value)}
-                    className={`w-full px-3 py-2 border rounded-lg ${
-                      formErrors.customerId ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                    } focus:outline-none focus:ring-2`}
-                    disabled={modalMode === "view" || customersLoading}
-                    required
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                      formErrors.customerId ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    disabled={modalMode === "view" || modalMode === "edit" || customersLoading}
+                    style={modalMode === "edit" ? { backgroundColor: '#f9fafb' } : {}}
+                  
                   >
-                    <option value="">Select Customer ID</option>
+                    <option value="" disabled hidden>Select Customer ID</option>
                     {customers.map((customer) => (
                       <option key={customer.id} value={customer.id}>
-                     {customer.id} - {getCustomerDisplayName(customer)}
+                        {customer.id} - {getCustomerDisplayName(customer)}
                       </option>
                     ))}
                   </select>
@@ -2213,118 +2237,129 @@ const getLoadingState = () => {
                 </div>
 
                 {/* Product Category */}
-                    <div>
+               <div>
                   <label className="block text-sm font-medium mb-2">Product Category *</label>
+                  {modalMode === "view" || modalMode === "edit" ? (
+                    <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                      {(() => {
+                        const product = getProductById(parseInt(bulkDefaultFormData.productId));
+                        return product ? product.category_name : `Product ID: ${bulkDefaultFormData.productId}`;
+                      })()}
+                    </div>
+                  ) : (
+                    <>
+                      <select
+                        value={bulkDefaultFormData.productId}
+                        onChange={(e) => handleBulkDefaultInputChange('productId', e.target.value)}
+                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                          formErrors.productId ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        disabled={productsLoading}
+                        
+                      >
+                        <option value="" disabled hidden>Select Product</option>
+                        {products
+                          .filter((product) => !product.customer_id)
+                          .map((product) => (
+                            <option key={product.id} value={product.id}>
+                              {product.id} - {product.category_name}
+                            </option>
+                          ))
+                        }
+                      </select>
+                      {formErrors.productId && (
+                        <p className="mt-1 text-sm text-red-600">{formErrors.productId}</p>
+                      )}
+                    </>
+                  )}
+                </div>
+           
+               {/* Size and Quantity Section */}
+               <div>
+                  <div className="grid grid-cols-2 gap-4 mb-2">
+                    <label className="block text-sm font-medium">Size *</label>
+                    <label className="block text-sm font-medium -ml-7">Quantity *</label>
+                  </div>
+                  
+                  {/* Show loading state */}
+                  {sizesLoading && (
+                    <div className="text-sm text-blue-600 mb-2">Loading available sizes...</div>
+                  )}
+                  
+                  {/* Show message if no sizes available */}
+                  {!sizesLoading && bulkDefaultFormData.productId && availableSizes.length === 0 && (
+                    <div className="text-sm text-red-600 mb-2">
+                      No sizes available for this product. Please add product measurements first.
+                    </div>
+                  )}
+                  
+                  <div className="space-y-3">
+                    {bulkDefaultFormData.sizeQuantities.map((sizeQuantity, index) => (
+                      <div key={index} className="flex gap-2 w-full">
                   <select
-                    value={bulkDefaultFormData.productId}
-                    onChange={(e) => handleBulkDefaultInputChange('productId', e.target.value)}
-                    className={`w-full px-3 py-2 border rounded-lg ${
-                      formErrors.productId ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                    } focus:outline-none focus:ring-2`}
-                    disabled={modalMode === "view" || productsLoading}
-                    required
-                  >
-                    <option value="">Select Product Category</option>
-                    {products
-                      .filter((product) => !product.customer_id) // Only show default products (non-custom)
-                      .map((product) => (
-                        <option key={product.id} value={product.id}>
-                          {product.category_name}
-                        </option>
-                      ))}
-                  </select>
-                  {formErrors.productId && (
-                    <p className="mt-1 text-sm text-red-600">{formErrors.productId}</p>
+                        value={sizeQuantity.size}
+                        onChange={(e) => updateSizeQuantity(index, 'size', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 text-black"
+                        disabled={modalMode === "view" || sizesLoading || availableSizes.length === 0}
+                        style={modalMode === "view" || sizesLoading || availableSizes.length === 0 ? { backgroundColor: '#f9fafb', color: '#000000' } : { color: '#000000' }}
+                      >
+                        {availableSizes.length > 0 ? (
+                          availableSizes.map((size) => (
+                            <option key={size} value={size}>
+                              {size}
+                            </option>
+                          ))
+                        ) : (
+                          <option value="" disabled style={{ color: '#000000' }}>
+                            {sizesLoading ? "Loading sizes..." : "No sizes available"}
+                          </option>
+                        )}
+                      </select>
+                       <input
+                          type="number"
+                          min="0"
+                          value={sizeQuantity.quantity}
+                          onChange={(e) => updateSizeQuantity(index, 'quantity', e.target.value)}
+                          className="w-1/2 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Enter quantity"
+                          readOnly={modalMode === "view"}
+                        />
+                        {modalMode !== "view" && (
+                          <Button
+                            type="button"
+                            onClick={() => removeSizeQuantity(index)}
+                            className="bg-red-600 hover:bg-red-700 text-white p-2 flex-shrink-0"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                    
+                    {modalMode !== "view" && availableSizes.length > 0 && (
+                      <Button
+                        type="button"
+                        onClick={addSizeQuantity}
+                        className="bg-blue-600 hover:bg-blue-700 text-white w-full flex items-center justify-center mt-3"
+                        disabled={sizesLoading}
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Size
+                      </Button>
+                    )}
+                    
+                    {bulkDefaultFormData.sizeQuantities.length === 0 && modalMode === "view" && (
+                      <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                        No size quantities specified
+                      </div>
+                    )}
+                  </div>
+                  
+                  {formErrors.sizeQuantities && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors.sizeQuantities}</p>
                   )}
                 </div>
 
-           
-               {/* Size and Quantity Section */}
-                  <div>
-                    <div className="grid grid-cols-2 gap-4 mb-2">
-                      <label className="block text-sm font-medium">Size *</label>
-                      <label className="block text-sm font-medium -ml-7">Quantity *</label>
-                    </div>
-                    
-                    {/* Show loading state */}
-                    {sizesLoading && (
-                      <div className="text-sm text-blue-600 mb-2">Loading available sizes...</div>
-                    )}
-                    
-                    {/* Show message if no sizes available */}
-                    {!sizesLoading && bulkDefaultFormData.productId && availableSizes.length === 0 && (
-                      <div className="text-sm text-red-600 mb-2">
-                        No sizes available for this product. Please add product measurements first.
-                      </div>
-                    )}
-                    
-                    <div className="space-y-3">
-                      {bulkDefaultFormData.sizeQuantities.map((sizeQuantity, index) => (
-                        <div key={index} className="flex gap-2 w-full">
-                        <select
-                          value={sizeQuantity.size}
-                          onChange={(e) => updateSizeQuantity(index, 'size', e.target.value)}
-                          className="w-1/2 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          disabled={modalMode === "view" || sizesLoading}
-                        >
-                          {availableSizes.length > 0 ? (
-                            // When sizes are available: show only the actual sizes, no "Select Size" option
-                            availableSizes.map((size) => (
-                              <option key={size} value={size}>
-                                {size}
-                              </option>
-                            ))
-                          ) : (
-                            // When no sizes or loading: show "Select Size" option
-                            <option value="">
-                              {sizesLoading ? "Loading sizes..." : "Select Size"}
-                            </option>
-                          )}
-                        </select>
-                        <input
-                            type="number"
-                            min="0"
-                            value={sizeQuantity.quantity}
-                            onChange={(e) => updateSizeQuantity(index, 'quantity', e.target.value)}
-                            className="w-1/2 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            placeholder="Enter quantity"
-                            readOnly={modalMode === "view"}
-                          />
-                          {modalMode !== "view" && (
-                            <Button
-                              type="button"
-                              onClick={() => removeSizeQuantity(index)}
-                              className="bg-red-600 hover:bg-red-700 text-white p-2 flex-shrink-0"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          )}
-                        </div>
-                      ))}
-                      
-                      {modalMode !== "view" && availableSizes.length > 0 && (
-                        <Button
-                          type="button"
-                          onClick={addSizeQuantity}
-                          className="bg-blue-600 hover:bg-blue-700 text-white w-full flex items-center justify-center mt-3"
-                          disabled={sizesLoading}
-                        >
-                          <Plus className="w-4 h-4 mr-2" />
-                          Add Size
-                        </Button>
-                      )}
-                      
-                      {bulkDefaultFormData.sizeQuantities.length === 0 && modalMode === "view" && (
-                        <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
-                          No size quantities specified
-                        </div>
-                      )}
-                    </div>
-                    
-                    {formErrors.sizeQuantities && (
-                      <p className="mt-1 text-sm text-red-600">{formErrors.sizeQuantities}</p>
-                    )}
-                  </div>
                 {/* Unit Price */}
                <div>
                 <label className="block text-sm font-medium mb-2">Unit Price *</label>
@@ -2343,14 +2378,16 @@ const getLoadingState = () => {
                     } focus:outline-none focus:ring-2`}
                     placeholder="00.00"
                     readOnly={modalMode === "view"}
-                    required
+                 
                   />
                 </div>
                 {formErrors.unitPrice && (
                   <p className="mt-1 text-sm text-red-600">{formErrors.unitPrice}</p>
                 )}
               </div>
-                              {/* Style Preferences */}
+                
+                
+                {/* Style Preferences */}
                 <div>
                   <label className="block text-sm font-medium mb-2">Style Preferences</label>
                   {modalMode === "view" ? (
@@ -2441,59 +2478,83 @@ const getLoadingState = () => {
               </>
             ) : null}
 
+           
             {/* Button Section */}
-            <div className="flex justify-end pt-4 gap-3">
-          {modalMode === "view" ? (
-            <>
-              {shouldShowDeleteButton() && (
-                <Button 
-                  type="button"
-                  onClick={() => {
-                    if (!selectedOrder) return;
-                    
-                    // Keep the view modal open, just show the delete confirmation on top
-                    const customerName = getOrderDisplayName(selectedOrder);
-                    setOrderToDelete({ order: selectedOrder, customerName });
-                    setIsDeleteModalOpen(true);
-                  }}
-                  className="bg-red-600 hover:bg-red-700 text-white"
-                >
-                  Delete
-                </Button>
-              )}
-              {shouldShowEditButton() && (
-                <Button 
-                  type="button"
-                  onClick={() => {
-                    setIsModalOpen(false);
-                    setTimeout(() => {
-                      setModalMode("edit");
-                      setIsModalOpen(true);
-                    }, 100);
-                  }}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  Edit
-                </Button>
-              )}
-            </>
-          ) : (
-            <Button 
-              type="submit" 
-              className="bg-blue-600 hover:bg-blue-700"
-              disabled={getLoadingState() || isLoading}
-            >
-              {getLoadingState() ? (
+            <div className="flex pt-16 gap-4 mt-16">
+              {modalMode === "view" ? (
                 <>
-                  <RefreshCw className="w-4 h-4 animate-spin mr-2" />
-                  {modalMode === "create" ? "Creating..." : "Updating..."}
+                  {shouldShowDeleteButton() && shouldShowEditButton() ? (
+                    // Both buttons present - use 50/50 flex layout
+                    <>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          if (!selectedOrder) return;
+                          const customerName = getOrderDisplayName(selectedOrder);
+                          setOrderToDelete({ order: selectedOrder, customerName });
+                          setIsDeleteModalOpen(true);
+                        }}
+                        className="flex-1 font-medium text-sm py-2 text-center hover:bg-red-50 rounded-md transition-colors"
+                        style={{ color: 'var(--negative-color, #D83A52)' }}
+                      >
+                        Delete
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setModalMode("edit")}
+                        className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 rounded-md text-sm"
+                      >
+                        Edit
+                      </button>
+                    </>
+                  ) : (
+                    <div className="flex justify-end gap-3 w-full">
+                      {shouldShowDeleteButton() && (
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            if (!selectedOrder) return;
+                            const customerName = getOrderDisplayName(selectedOrder);
+                            setOrderToDelete({ order: selectedOrder, customerName });
+                            setIsDeleteModalOpen(true);
+                          }}
+                          className="text-red-500 hover:text-red-600 font-medium text-sm px-4 py-2 hover:bg-red-50 rounded-md transition-colors"
+                        >
+                          Delete
+                        </button>
+                      )}
+                      {shouldShowEditButton() && (
+                        <button 
+                          type="button"
+                          onClick={() => setModalMode("edit")}
+                          className="bg-blue-500 hover:bg-blue-600 text-white font-medium px-6 py-2 rounded-md text-sm"
+                        >
+                          Edit
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </>
               ) : (
-                modalMode === "create" ? "Create Order" : "Update Order"
+                // Create/Edit mode - Cancel/Save buttons
+                <>
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="flex-1 font-medium text-sm py-2 text-center hover:bg-gray-50 rounded-md transition-colors text-gray-700"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 rounded-md text-sm"
+                    disabled={getLoadingState() || isLoading}
+                  >
+                    {getLoadingState() ? 'Saving...' : 'Save'}
+                  </button>
+                </>
               )}
-            </Button>
-          )}
-        </div>
+            </div>
           </form>
         </SlideModal>
 

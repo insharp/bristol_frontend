@@ -219,18 +219,17 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
     });
   };
 
-  // Handler to switch from view to edit mode (like AppointmentManagement)
+  // Handler to switch from view to edit mode 
   const handleEditFromView = () => {
     if (!permissions.canEdit || !selectedCustomer) return;
     
-    console.log('Navigating from view to edit modal');
-    setIsFormOpen(false);
-    setTimeout(() => {
-      setModalMode("edit");
-      setIsFormOpen(true);
-    }, 100);
+    // Just switch the mode directly - no timeout needed for seamless transition
+    setModalMode("edit");
+    // Modal stays open, just switches from view to edit mode
   };
 
+
+  // Handler to confirm deletion
   // Handler to confirm deletion
   const handleConfirmDelete = async () => {
     setDeleteModal(prev => ({ ...prev, isDeleting: true }));
@@ -257,17 +256,84 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
           showSuccessMessage('Success!', `Customer "${deleteModal.customerInfo.name}" has been deleted successfully.`);
         }, 100);
       } else {
-        showErrorMessage('Deletion Failed', result.error || 'Failed to delete customer');
+        // Close the delete confirmation modal first
+        setDeleteModal({
+          isOpen: false,
+          customerId: '',
+          customerInfo: {
+            name: '',
+            type: '',
+            id: ''
+          },
+          isDeleting: false
+        });
         
-        // Reset deleting state but keep modal open
-        setDeleteModal(prev => ({ ...prev, isDeleting: false }));
+        // Handle specific error cases
+        let errorTitle = 'Deletion Failed';
+        let errorMessage = 'Failed to delete customer';
+        
+        if (result.error) {
+          const errorLower = result.error.toLowerCase();
+          
+          // Check for foreign key constraint errors
+          if (errorLower.includes('foreign key') || 
+              errorLower.includes('constraint') || 
+              errorLower.includes('referenced') ||
+              errorLower.includes('404') ||
+              errorLower.includes('could not be deleted')) {
+            errorTitle = 'Cannot Delete Customer';
+            errorMessage = `Cannot delete "${deleteModal.customerInfo.name}" because they have existing orders, appointments, or other related records. Please remove these records first before deleting the customer.`;
+          } else if (errorLower.includes('not found')) {
+            errorTitle = 'Customer Not Found';
+            errorMessage = 'The customer you are trying to delete no longer exists. Please refresh the page and try again.';
+          } else {
+            // Generic error with original message
+            errorMessage = result.error;
+          }
+        }
+        
+        // Show error message after modal is closed
+        setTimeout(() => {
+          showErrorMessage(errorTitle, errorMessage);
+        }, 100);
       }
     } catch (error) {
       console.error('Failed to delete customer:', error);
-      showErrorMessage('Deletion Failed', 'Failed to delete customer. Please try again.');
       
-      // Reset deleting state but keep modal open
-      setDeleteModal(prev => ({ ...prev, isDeleting: false }));
+      // Close the delete confirmation modal first
+      setDeleteModal({
+        isOpen: false,
+        customerId: '',
+        customerInfo: {
+          name: '',
+          type: '',
+          id: ''
+        },
+        isDeleting: false
+      });
+      
+      // Handle network/unexpected errors
+      let errorTitle = 'Deletion Failed';
+      let errorMessage = 'Failed to delete customer. Please try again.';
+      
+      if (error instanceof Error) {
+        const errorLower = error.message.toLowerCase();
+        
+        if (errorLower.includes('foreign key') || 
+            errorLower.includes('constraint') || 
+            errorLower.includes('referenced')) {
+          errorTitle = 'Cannot Delete Customer';
+          errorMessage = `Cannot delete "${deleteModal.customerInfo.name}" because they have existing orders, appointments, or other related records. Please remove  these records first before deleting the customer.`;
+        } else if (errorLower.includes('network') || errorLower.includes('fetch')) {
+          errorTitle = 'Connection Error';
+          errorMessage = 'Unable to connect to the server. Please check your connection and try again.';
+        }
+      }
+      
+      // Show error message after modal is closed
+      setTimeout(() => {
+        showErrorMessage(errorTitle, errorMessage);
+      }, 100);
     }
   };
 
@@ -306,16 +372,18 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
     }
 
     if (!formData.phone_number.trim()) {
-      errors.phone_number = 'Phone number is required';
+      errors.phone_number = 'Contact number is required';
     } else if (formData.phone_number.trim().length < 10) {
-      errors.phone_number = 'Phone number must be at least 10 digits';
+      errors.phone_number = 'Contact number must be at least 10 digits';
     }
 
     if (formData.customer_type === 'individual') {
       if (!formData.customer_name.trim()) {
         errors.customer_name = 'Customer name is required';
       }
-      // Delivery address is optional for individual customers
+        if (!formData.delivery_address.trim()) {
+        errors.delivery_address = 'Delivery address is required';
+      }
     } else if (formData.customer_type === 'corporate') {
       if (!formData.company_name.trim()) {
         errors.company_name = 'Company name is required';
@@ -706,7 +774,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
                 onChange={(e) => handleCustomerTypeChange(e.target.value as "individual" | "corporate")}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 disabled={modalMode === "view"}
-                required
+               
               >
                 <option value="individual">Individual</option>
                 <option value="corporate">Corporate</option>
@@ -726,7 +794,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
                     formErrors.customer_name ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                   } focus:outline-none focus:ring-2`}
                   readOnly={modalMode === "view"}
-                  required
+                
                 />
                 {formErrors.customer_name && (
                   <p className="mt-1 text-sm text-red-600">{formErrors.customer_name}</p>
@@ -747,7 +815,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
                       formErrors.company_name ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                     } focus:outline-none focus:ring-2`}
                     readOnly={modalMode === "view"}
-                    required
+                 
                   />
                   {formErrors.company_name && (
                     <p className="mt-1 text-sm text-red-600">{formErrors.company_name}</p>
@@ -764,7 +832,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
                       formErrors.contact_person ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                     } focus:outline-none focus:ring-2`}
                     readOnly={modalMode === "view"}
-                    required
+                   
                   />
                   {formErrors.contact_person && (
                     <p className="mt-1 text-sm text-red-600">{formErrors.contact_person}</p>
@@ -785,7 +853,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
                   formErrors.phone_number ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                 } focus:outline-none focus:ring-2`}
                 readOnly={modalMode === "view"}
-                required
+               
               />
               {formErrors.phone_number && (
                 <p className="mt-1 text-sm text-red-600">{formErrors.phone_number}</p>
@@ -802,7 +870,7 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
                   formErrors.email ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
                 } focus:outline-none focus:ring-2`}
                 readOnly={modalMode === "view"}
-                required
+             
               />
               {formErrors.email && (
                 <p className="mt-1 text-sm text-red-600">{formErrors.email}</p>
@@ -820,7 +888,6 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
                 } focus:outline-none focus:ring-2`}
                 rows={3}
                 readOnly={modalMode === "view"}
-                required
               />
               {formErrors.delivery_address && (
                 <p className="mt-1 text-sm text-red-600">{formErrors.delivery_address}</p>
@@ -844,38 +911,74 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
               )}
             </div>
 
-            {/* Button Section - Same pattern as AppointmentManagement */}
-            <div className="flex justify-end pt-4 gap-3">
-              {modalMode === "view" ? (
-                <>
-                  {permissions.canDelete && (
-                    <Button 
+           {/* Button Section */}
+          <div className="flex pt-16 gap-4 mt-16">
+            {modalMode === "view" ? (
+              <>
+                {permissions.canDelete && permissions.canEdit ? (
+                  // Both buttons present - use flex layout
+                  <>
+                    <button 
                       type="button"
                       onClick={handleDeleteFromView}
-                      className="bg-red-600 hover:bg-red-700 text-white"
+                      className="flex-1 font-medium text-sm py-2 text-center hover:bg-red-50 rounded-md transition-colors"
+                      style={{ color: 'var(--negative-color, #D83A52)' }}
                     >
                       Delete
-                    </Button>
-                  )}
-                  {permissions.canEdit && (
-                    <Button 
+                    </button>
+                    <button 
                       type="button"
                       onClick={handleEditFromView}
-                      className="bg-blue-600 hover:bg-blue-700"
+                      className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 rounded-md text-sm"
                     >
                       Edit
-                    </Button>
-                  )}
-                </>
-              ) : (
-                <Button 
-                  type="submit" 
-                  className="bg-blue-600 hover:bg-blue-700"
+                    </button>
+                  </>
+                ) : (
+                  // Single button or no buttons - use standard layout
+                  <div className="flex justify-end gap-3">
+                    {permissions.canDelete && (
+                      <button 
+                        type="button"
+                        onClick={handleDeleteFromView}
+                        className="text-red-500 hover:text-red-600 font-medium text-sm px-4 py-2 hover:bg-red-50 rounded-md transition-colors"
+                      >
+                        Delete
+                      </button>
+                    )}
+                    {permissions.canEdit && (
+                      <button 
+                        type="button"
+                        onClick={handleEditFromView}
+                        className="bg-blue-500 hover:bg-blue-600 text-white font-medium px-6 py-2 rounded-md text-sm"
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : (
+              // Create/Edit mode - Cancel and Save buttons in same format as Delete/Edit
+              <>
+                <button 
+                  type="button"
+                  onClick={closeForm}
+                  className="flex-1 font-medium text-sm py-2 text-center hover:bg-gray-50 rounded-md transition-colors text-gray-700"
                 >
-                  {modalMode === "create" ? "Create Customer" : "Update Customer"}
-                </Button>
-              )}
-            </div>
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 rounded-md text-sm"
+                >
+                  {modalMode === "create" ? "Save" : "Save"}
+                </button>
+              </>
+            )}
+          </div>
+          
+
           </form>
         </SlideModal>
 

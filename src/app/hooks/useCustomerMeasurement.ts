@@ -18,48 +18,62 @@ export const useCustomerMeasurement = () => {
   const clearError = useCallback(() => setError(''), []);
 
   // Generic fetch function with error handling
-const fetchData = useCallback(async (endpoint: string, options?: RequestInit) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
-      ...options,
-    });
+  const fetchData = useCallback(async (endpoint: string, options?: RequestInit) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...options?.headers,
+        },
+        ...options,
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      const errorMessage = errorData.detail || `HTTP error! status: ${response.status}`;
-      
-      // Don't treat "no data found" scenarios as errors - with null safety
-      if (response.status === 404 || 
-          (errorMessage && errorMessage.toLowerCase().includes('no measurement')) ||
-          (errorMessage && errorMessage.toLowerCase().includes('not found')) ||
-          (errorMessage && errorMessage.toLowerCase().includes('no data'))) {
-        // Return empty array for "no data" scenarios instead of throwing
-        return [];
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        
+        // Extract error message safely
+        let errorMessage = '';
+        if (typeof errorData === 'string') {
+          errorMessage = errorData;
+        } else if (errorData.detail) {
+          errorMessage = typeof errorData.detail === 'string' 
+            ? errorData.detail 
+            : JSON.stringify(errorData.detail);
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else {
+          errorMessage = `HTTP error ${response.status}`;
+        }
+        
+        // Convert to lowercase for comparison
+        const errorStr = errorMessage.toLowerCase();
+        
+        // Don't treat "no data found" scenarios as errors
+        if (response.status === 404 ||
+            errorStr.includes('no measurement') ||
+            errorStr.includes('not found') ||
+            errorStr.includes('no data')) {
+          return [];
+        }
+        
+        throw new Error(errorMessage);
       }
-      
-      throw new Error(errorMessage);
-    }
 
-    return await response.json();
-  } catch (err) {
-    // Only set error for actual errors, not "no data" scenarios - with null safety
-    if (err instanceof Error && err.message) {
-      const message = err.message.toLowerCase();
-      if (!message.includes('no measurement') &&
-          !message.includes('not found') &&
-          !message.includes('no data')) {
-        const errorMessage = err.message || 'An unexpected error occurred';
-        setError(errorMessage);
+      return await response.json();
+    } catch (err) {
+      // Only set error for actual errors, not "no data" scenarios
+      if (err instanceof Error && err.message) {
+        const message = err.message.toLowerCase();
+        if (!message.includes('no measurement') &&
+            !message.includes('not found') &&
+            !message.includes('no data')) {
+          setError(err.message);
+        }
       }
+      throw err;
     }
-    throw err;
-  }
-}, []);
+  }, []);
 
   const fetchIndividualMeasurements = useCallback(async (): Promise<IndividualMeasurement[]> => {
     setLoading(true);
@@ -68,7 +82,6 @@ const fetchData = useCallback(async (endpoint: string, options?: RequestInit) =>
       const data = await fetchData('/customer-measurement/customer/all/');
       return Array.isArray(data) ? data : [];
     } catch (err) {
-      // Return empty array for "no data" scenarios
       const errorMessage = err instanceof Error ? err.message : '';
       if (errorMessage.toLowerCase().includes('no measurement') ||
           errorMessage.toLowerCase().includes('not found') ||
@@ -86,7 +99,6 @@ const fetchData = useCallback(async (endpoint: string, options?: RequestInit) =>
     setError('');
     try {
       if (isEdit) {
-        // PUT request: /customer-measurement/customer/{customer_id}/product/{product_id}
         if (!data.customer_id || !data.product_id) {
           throw new Error('Customer ID and Product ID are required for updating measurement');
         }
@@ -95,7 +107,6 @@ const fetchData = useCallback(async (endpoint: string, options?: RequestInit) =>
           body: JSON.stringify(data),
         });
       } else {
-        // POST request: /customer-measurement
         await fetchData('/customer-measurement/', {
           method: 'POST',
           body: JSON.stringify(data),
@@ -110,13 +121,48 @@ const fetchData = useCallback(async (endpoint: string, options?: RequestInit) =>
     setLoading(true);
     setError('');
     try {
-      await fetchData(`/customer-measurement/customer/${customerId}/product/${productId}`, {
+      const response = await fetch(`${API_BASE_URL}/customer-measurement/customer/${customerId}/product/${productId}`, {
         method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
+
+      if (response.ok) {
+        return;
+      }
+
+      let errorData = {};
+      try {
+        errorData = await response.json();
+      } catch (jsonError) {
+        console.warn('Could not parse error response as JSON:', jsonError);
+      }
+
+      const error = new Error((errorData as any).detail || (errorData as any).message || `HTTP ${response.status}: ${response.statusText}`);
+      (error as any).response = {
+        status: response.status,
+        statusText: response.statusText,
+        data: errorData
+      };
+      
+      throw error;
+      
+    } catch (error: any) {
+      console.error('Delete individual measurement error:', error);
+      
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        const constraintError = new Error('Foreign key constraint violation');
+        (constraintError as any).isConstraintError = true;
+        throw constraintError;
+      }
+      
+      throw error;
     } finally {
       setLoading(false);
     }
-  }, [fetchData]);
+  }, []);
 
   // Corporate measurements
   const fetchCorporateMeasurements = useCallback(async (): Promise<CorporateMeasurement[]> => {
@@ -126,7 +172,6 @@ const fetchData = useCallback(async (endpoint: string, options?: RequestInit) =>
       const data = await fetchData('/corporate-measurement/corporate/all');
       return Array.isArray(data) ? data : [];
     } catch (err) {
-      // Return empty array for "no data" scenarios
       const errorMessage = err instanceof Error ? err.message : '';
       if (errorMessage.toLowerCase().includes('no measurement') ||
           errorMessage.toLowerCase().includes('not found') ||
@@ -144,7 +189,6 @@ const fetchData = useCallback(async (endpoint: string, options?: RequestInit) =>
     setError('');
     try {
       if (isEdit) {
-        // PUT request: /corporate-measurement/{bulk_id}
         if (!data.id) {
           throw new Error('Bulk ID is required for updating corporate measurement');
         }
@@ -153,7 +197,6 @@ const fetchData = useCallback(async (endpoint: string, options?: RequestInit) =>
           body: JSON.stringify(data),
         });
       } else {
-        // POST request: /corporate-measurement
         await fetchData('/corporate-measurement/', {
           method: 'POST',
           body: JSON.stringify(data),
@@ -168,23 +211,56 @@ const fetchData = useCallback(async (endpoint: string, options?: RequestInit) =>
     setLoading(true);
     setError('');
     try {
-      await fetchData(`/corporate-measurement/${bulkId}/`, {
+      const response = await fetch(`${API_BASE_URL}/corporate-measurement/${bulkId}/`, {
         method: 'DELETE',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
+
+      if (response.ok) {
+        return;
+      }
+
+      let errorData = {};
+      try {
+        errorData = await response.json();
+      } catch (jsonError) {
+        console.warn('Could not parse error response as JSON:', jsonError);
+      }
+
+      const error = new Error((errorData as any).detail || (errorData as any).message || `HTTP ${response.status}: ${response.statusText}`);
+      (error as any).response = {
+        status: response.status,
+        statusText: response.statusText,
+        data: errorData
+      };
+      
+      throw error;
+      
+    } catch (error: any) {
+      console.error('Delete corporate measurement error:', error);
+      
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        const constraintError = new Error('Foreign key constraint violation');
+        (constraintError as any).isConstraintError = true;
+        throw constraintError;
+      }
+      
+      throw error;
     } finally {
       setLoading(false);
     }
-  }, [fetchData]);
+  }, []);
 
   return {
     loading,
     error,
     clearError,
-    // Individual methods
     fetchIndividualMeasurements,
     saveIndividualMeasurement,
     deleteIndividualMeasurement,
-    // Corporate methods
     fetchCorporateMeasurements,
     saveCorporateMeasurement,
     deleteCorporateMeasurement,
@@ -273,7 +349,6 @@ export const useProducts = () => {
     }
   }, []);
 
-  // NEW: Get products for a specific customer (includes default products)
   const getCustomerProducts = useCallback(async (
     customerId: string,
     customerType: 'individual' | 'corporate'
@@ -281,10 +356,8 @@ export const useProducts = () => {
     setLoading(true);
     setError('');
     try {
-      // Fetch all products
       const allProducts = await fetchProducts();
       
-      // Get existing measurements for this customer to include products they already have
       let existingProductIds: string[] = [];
       try {
         const measurementEndpoint = customerType === 'individual' 
@@ -297,7 +370,6 @@ export const useProducts = () => {
         
         if (response.ok) {
           const measurements = await response.json();
-          // Filter measurements for this specific customer
           const customerMeasurements = measurements.filter((m: any) => 
             customerType === 'individual' 
               ? m.customer_id === customerId 
@@ -309,23 +381,19 @@ export const useProducts = () => {
         console.warn('Could not fetch existing measurements:', err);
       }
 
-      // Filter products based on business logic
       const filteredProducts = allProducts.filter((product: any) => {
         console.log('Filtering product:', product.id, 'customer_id:', product.customer_id, 'for customer:', customerId);
         
-        // Always include products with no customer assignment (default/universal products)
         if (!product.customer_id || product.customer_id === '' || product.customer_id === '0' || product.customer_id === 0) {
           console.log('Including default product:', product.id);
           return true;
         }
         
-        // Include products the customer already has measurements for
         if (existingProductIds.includes(product.id)) {
           console.log('Including existing measurement product:', product.id);
           return true;
         }
         
-        // Include products specifically assigned to this customer
         if (product.customer_id === customerId || product.customer_id === parseInt(customerId)) {
           console.log('Including customer-specific product:', product.id);
           return true;
@@ -335,23 +403,19 @@ export const useProducts = () => {
         return false;
       });
 
-      // Sort products: defaults first, then customer-specific, then alphabetical
       const sortedProducts = filteredProducts.sort((a: any, b: any) => {
-        // Defaults first (no customer_id)
         const aIsDefault = !a.customer_id || a.customer_id === '' || a.customer_id === '0' || a.customer_id === 0;
         const bIsDefault = !b.customer_id || b.customer_id === '' || b.customer_id === '0' || b.customer_id === 0;
         
         if (aIsDefault && !bIsDefault) return -1;
         if (!aIsDefault && bIsDefault) return 1;
         
-        // Customer-specific second
         const aIsCustomer = a.customer_id === customerId || a.customer_id === parseInt(customerId);
         const bIsCustomer = b.customer_id === customerId || b.customer_id === parseInt(customerId);
         
         if (aIsCustomer && !bIsCustomer) return -1;
         if (!aIsCustomer && bIsCustomer) return 1;
         
-        // Then alphabetical by category_name
         const aName = a.category_name || a.name || a.product_name || '';
         const bName = b.category_name || b.name || b.product_name || '';
         return aName.localeCompare(bName);
@@ -372,7 +436,7 @@ export const useProducts = () => {
     loading,
     error,
     fetchProducts,
-    getCustomerProducts, // New method for customer-specific filtering
+    getCustomerProducts,
   };
 };
 
