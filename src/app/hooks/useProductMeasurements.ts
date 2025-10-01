@@ -131,61 +131,94 @@ const useProductMeasurement = () => {
   }, []);
 
   // Create product measurement
-  const createProductMeasurement = useCallback(async (data: CreateProductMeasurementData): Promise<ProductMeasurement> => {
-    setLoading(true);
-    setError(null);
-    try {
-      console.log(data)
-      const response = await fetch(`${baseUrl}/product-measurement`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: "include",
-        body: JSON.stringify(data),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to create product measurement');
+  // Create product measurement
+const createProductMeasurement = useCallback(async (data: CreateProductMeasurementData): Promise<ProductMeasurement> => {
+  setLoading(true);
+  setError(null);
+  try {
+    console.log(data);
+    const response = await fetch(`${baseUrl}/product-measurement`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: "include",
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      // Try to get error details from response
+      let errorData = {};
+      try {
+        errorData = await response.json();
+      } catch (jsonError) {
+        console.warn('Could not parse error response as JSON:', jsonError);
       }
-      
-      const result = await response.json();
-      return result;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
-  // Update product measurement
-  const updateProductMeasurement = useCallback(async (id: number, data: CreateProductMeasurementData): Promise<ProductMeasurement> => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`${baseUrl}/product-measurement/${id}`, {
-        credentials:"include",
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
+      // Create error with response details (similar to your deleteProductMeasurement)
+      const error = new Error((errorData as any).message || (errorData as any).detail || `HTTP ${response.status}: ${response.statusText}`);
+      (error as any).response = {
+        status: response.status,
+        statusText: response.statusText,
+        data: errorData
+      };
       
-      if (!response.ok) {
-        throw new Error('Failed to update product measurement');
-      }
-      
-      const result = await response.json();
-      return result;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      throw err;
-    } finally {
-      setLoading(false);
+      throw error;
     }
-  }, []);
+    
+    const result = await response.json();
+    return result;
+  } catch (err) {
+    setError(err instanceof Error ? err.message : 'An error occurred');
+    throw err;
+  } finally {
+    setLoading(false);
+  }
+}, []);
+  // Update product measurement
+// Update product measurement
+const updateProductMeasurement = useCallback(async (id: number, data: CreateProductMeasurementData): Promise<ProductMeasurement> => {
+  setLoading(true);
+  setError(null);
+  try {
+    const response = await fetch(`${baseUrl}/product-measurement/${id}`, {
+      credentials:"include",
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      // Try to get error details from response
+      let errorData = {};
+      try {
+        errorData = await response.json();
+      } catch (jsonError) {
+        console.warn('Could not parse error response as JSON:', jsonError);
+      }
+
+      // Create error with response details
+      const error = new Error((errorData as any).message || (errorData as any).detail || `HTTP ${response.status}: ${response.statusText}`);
+      (error as any).response = {
+        status: response.status,
+        statusText: response.statusText,
+        data: errorData
+      };
+      
+      throw error;
+    }
+    
+    const result = await response.json();
+    return result;
+  } catch (err) {
+    setError(err instanceof Error ? err.message : 'An error occurred');
+    throw err;
+  } finally {
+    setLoading(false);
+  }
+}, []);
 
   // Delete product measurement by product ID and size
   const deleteProductMeasurement = useCallback(async (productId: number, size: string): Promise<void> => {

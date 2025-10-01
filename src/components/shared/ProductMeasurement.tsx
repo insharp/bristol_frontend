@@ -296,27 +296,57 @@ const ProductMeasurementComponent: React.FC<ProductMeasurementProps> = ({
   }
 };
 
-  const handleFormSubmit = async (data: CreateProductMeasurementData, isEdit = false) => {
-    try {
-      if (isEdit && selectedMeasurement) {
-        await updateProductMeasurement(selectedMeasurement.id, data);
-        const productName = products.find(p => p.id === data.product_id)?.category_name || 'Selected Product';
-        const formattedSize = formatSize(data.size);
-        showSuccessMessage('Success!', `Measurement for "${productName}" (Size: ${formattedSize}) has been updated successfully!`);
-      } else {
-        await createProductMeasurement(data);
-        const productName = products.find(p => p.id === data.product_id)?.category_name || 'Selected Product';
-        const formattedSize = formatSize(data.size);
-        showSuccessMessage('Success!', `Measurement for "${productName}" (Size: ${formattedSize}) has been created successfully!`);
-      }
-      
-      setIsModalOpen(false);
-      await loadData();
-      setSelectedMeasurement(null);
-    } catch (error) {
-      showErrorMessage('Save Failed', 'Failed to save measurement. Please try again.');
+ const handleFormSubmit = async (data: CreateProductMeasurementData, isEdit = false) => {
+  try {
+    if (isEdit && selectedMeasurement) {
+      await updateProductMeasurement(selectedMeasurement.id, data);
+      const productName = products.find(p => p.id === data.product_id)?.category_name || 'Selected Product';
+      const formattedSize = formatSize(data.size);
+      showSuccessMessage('Success!', `Measurement for "${productName}" (Size: ${formattedSize}) has been updated successfully!`);
+    } else {
+      await createProductMeasurement(data);
+      const productName = products.find(p => p.id === data.product_id)?.category_name || 'Selected Product';
+      const formattedSize = formatSize(data.size);
+      showSuccessMessage('Success!', `Measurement for "${productName}" (Size: ${formattedSize}) has been created successfully!`);
     }
-  };
+    
+    setIsModalOpen(false);
+    await loadData();
+    setSelectedMeasurement(null);
+  } catch (error: any) {
+    // ADD THESE DEBUG LOGS
+    console.error('Full error object:', error);
+    console.error('Error response:', error.response);
+    console.error('Error response status:', error.response?.status);
+    console.error('Error response data:', error.response?.data);
+    
+    const productName = products.find(p => p.id === data.product_id)?.category_name || 'Selected Product';
+    const formattedSize = formatSize(data.size);
+    
+    // Check for 400 status (which your backend returns for duplicates)
+    if (error.response?.status === 400 || error.response?.status === 409) {
+      showErrorMessage(
+        'Duplicate Measurement',
+        `A measurement for "${productName}" with size ${formattedSize} already exists. Please select a different size or edit the existing measurement.`
+      );
+      return;
+    }
+    
+    // Handle other errors
+    let errorTitle = 'Save Failed';
+    let errorMessage = `Failed to save the product measurement for "${productName}" (Size: ${formattedSize}). Please try again.`;
+    
+    if (error.response?.data?.detail) {
+      errorMessage = error.response.data.detail;
+    } else if (error.response?.data?.message) {
+      errorMessage = error.response.data.message;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    showErrorMessage(errorTitle, errorMessage);
+  }
+};
 
   const closeModal = () => {
     setIsModalOpen(false);
@@ -425,23 +455,7 @@ const ProductMeasurementComponent: React.FC<ProductMeasurementProps> = ({
         </div>
       </div>
 
-      {/* Error Display */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
-          <div className="flex items-start justify-between">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <AlertCircle className="h-5 w-5 text-red-400" />
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-red-800">Error</h3>
-                <div className="mt-1 text-sm text-red-700">{error}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
+    
       {/* Table */}
       <ReusableTable
         data={filteredMeasurements}

@@ -98,16 +98,13 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
                 <div>
                   <h4 className="font-medium text-gray-900">
                     Employee {index + 1}
-                    {employee.employee_name && (
-                      <span className="text-gray-600 font-normal ml-2">
-                        - {employee.employee_name}
-                      </span>
-                    )}
                   </h4>
                   {employee.employee_code && (
                     <p className="text-sm text-gray-500 mt-0.5">
-                      Code: {employee.employee_code}
+                      Employee Code: {employee.employee_code}<br/>
+                      Employee Name: {employee.employee_name} 
                     </p>
+                    
                   )}
                 </div>
               </div>
