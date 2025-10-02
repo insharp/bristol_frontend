@@ -12,7 +12,7 @@ import {
   ORDER_STATUS_OPTIONS,
   SIZE_OPTIONS,
   PRODUCT_FILTER_OPTIONS
-} from '@/app/hooks/useOrder';
+} from '@/hooks/useOrder';
 import ReusableTable from '../ui/ReusableTable';
 import Button from '@/components/ui/button';
 import SlideModal from '@/components/ui/SlideModal';

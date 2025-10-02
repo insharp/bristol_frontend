@@ -4,7 +4,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import Button from "@/components/ui/button";
 import ReusableTable from "@/components/ui/ReusableTable";
 import SlideModal from "@/components/ui/SlideModal";
-import { useCashbook, CashBookEntry, CashBookFormData, ReferenceEntry } from "@/app/hooks/useCashbook";
+import { useCashbook, CashBookEntry, CashBookFormData, ReferenceEntry } from "@/hooks/useCashbook";
 import { Plus, RefreshCw, Calendar, X, Search, CalendarDays } from "lucide-react";
 
 interface CashBookManagementProps {

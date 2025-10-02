@@ -29,9 +29,9 @@ export default function LoginPage() {
         if (res.ok) {
           const data = await res.json();
           if (data?.data?.role === "admin") {
-            router.replace("/admin_dashboard/customer");
+            router.replace("/admin/customer");
           } else if (data?.data?.role === "superadmin") {
-            router.replace("/super_admin_dashboard/customer");
+            router.replace("/super-admin/customer");
           }
         }
       } catch (err) {
@@ -102,9 +102,9 @@ export default function LoginPage() {
 
         // Redirect based on role
         if (data.data.role === "admin") {
-          router.push("/admin_dashboard/customer");
+          router.push("/admin/customer");
         } else if (data.data.role === "superadmin") {
-          router.push("/super_admin_dashboard/customer");
+          router.push("/super-admin/customer");
         } else {
           setError("Unknown user type");
         }

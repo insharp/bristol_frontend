@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import Button from "@/components/ui/button";
 import ReusableTable from "@/components/ui/ReusableTable";
-import { useCustomers, Customer, CustomerType } from "@/app/hooks/useCustomers";
+import { useCustomers, Customer, CustomerType } from "@/hooks/useCustomers";
 import MessageModal from "@/components/ui/ErrorMessageModal"
 import CustomerTypeFilter from "@/components/Filter/CustomerTypeFilter";
 import SlideModal from "@/components/ui/SlideModal";

@@ -26,13 +26,13 @@ export default function SidebarLayout() {
 
 
     const sidebarItems: SidebarItem[] = [
-    { icon: <UserCart width="23px" height="23px" />, label: "Customers", href: "/super_admin_dashboard/customer" },
-    { icon:<TbShirt />, label: "Products", href: "/super_admin_dashboard/product" },
-    { icon: <LuPencilRuler />, label: "Measurements", href: "/super_admin_dashboard/measurement" },
-    { icon: <HiOutlineClipboardList />, label: "Orders", href: "/super_admin_dashboard/order" },
-    { icon: <LuCalendarCheck />, label: "Appointments", href: "/super_admin_dashboard/appointment" },
-    //{ icon: <FaHome />, label: "Overview", href: "/super_admin_dashboard/overview" },
-    { icon: <TbUsers />, label: "User", href: "/super_admin_dashboard/users" },
+    { icon: <UserCart width="23px" height="23px" />, label: "Customers", href: "/super-admin/customer" },
+    { icon:<TbShirt />, label: "Products", href: "/super-admin/product" },
+    { icon: <LuPencilRuler />, label: "Measurements", href: "/super-admin/measurement" },
+    { icon: <HiOutlineClipboardList />, label: "Orders", href: "/super-admin/order" },
+    { icon: <LuCalendarCheck />, label: "Appointments", href: "/super-admin/appointment" },
+    //{ icon: <FaHome />, label: "Overview", href: "/super-admin/overview" },
+    { icon: <TbUsers />, label: "User", href: "/super-admin/users" },
     { icon: <FiLogOut width="20px" height="20px"  />, label: "Logout", onClick: handleLogout },
   ];
 

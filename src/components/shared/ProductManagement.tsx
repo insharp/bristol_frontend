@@ -3,8 +3,8 @@ import React, { useEffect, useState } from "react";
 import Button from "@/components/ui/button";
 import ReusableTable from "@/components/ui/ReusableTable";
 import SlideModal from "@/components/ui/SlideModal";
-import { useProducts, Product } from "@/app/hooks/useProduct";
-import { useCustomers, Customer } from "@/app/hooks/useCustomers";
+import { useProducts, Product } from "@/hooks/useProduct";
+import { useCustomers, Customer } from "@/hooks/useCustomers";
 import { createPortal } from "react-dom";
 
 interface ProductManagementProps {

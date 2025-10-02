@@ -1,4 +1,4 @@
-// src/app/super_admin_dashboard/layout.tsx
+// src/app/super-admin/layout.tsx
 import Sidebar from '@/components/layout/admin_sidebar'
 import React from 'react'
 

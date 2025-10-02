@@ -35,11 +35,11 @@ export async function middleware(request: NextRequest) {
   const user = await res.json()
   
   // Role-based protection
-  if (pathname.startsWith('/admin_dashboard') && user.data.role !== 'admin') {
+  if (pathname.startsWith('/admin') && user.data.role !== 'admin') {
     return NextResponse.redirect(new URL('/unauthorized', request.url))
   }
   
-  if (pathname.startsWith('/super_admin_dashboard') && user.data.role !== 'superadmin') {
+  if (pathname.startsWith('/super-admin') && user.data.role !== 'superadmin') {
     return NextResponse.redirect(new URL('/unauthorized', request.url))
   }
   

@@ -9,13 +9,13 @@ import {
   Product, 
   MeasurementField,
   Employee 
-} from "@/app/types/CustomerMeasurement.types";
+} from "@/types/CustomerMeasurement.types";
 import { 
   useCustomerMeasurement,
   useCustomers,
   useProducts,
   useMeasurementFields
-} from "@/app/hooks/useCustomerMeasurement"
+} from "@/hooks/useCustomerMeasurement"
 import Button from "@/components/ui/button";
 
 import MeasurementFormField from "./MeasurementFormField";

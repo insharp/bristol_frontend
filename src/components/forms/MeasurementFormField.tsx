@@ -1,7 +1,7 @@
 // components/MeasurementFormField.tsx
 "use client";
 import React from "react";
-import { MeasurementField } from "@/app/types/CustomerMeasurement.types";
+import { MeasurementField } from "@/types/CustomerMeasurement.types";
 
 interface MeasurementFormFieldProps {
   field: MeasurementField;

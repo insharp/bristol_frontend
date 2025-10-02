@@ -1,7 +1,7 @@
 //components/shared/CustomerManagement/CustomerTypeFilter.tsx
 "use client";
 import React from "react";
-import { CustomerType } from "@/app/hooks/useCustomers";
+import { CustomerType } from "@/hooks/useCustomers";
 
 interface CustomerTypeFilterProps {
   selectedType: CustomerType;

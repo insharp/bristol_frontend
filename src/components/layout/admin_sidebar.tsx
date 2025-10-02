@@ -26,14 +26,14 @@ export default function SidebarLayout() {
     }
   };
   const sidebarItems: SidebarItem[] = [
-    //{ icon: <FaHome />, label: "Overview", href: "/admin_dashboard/overview" },
+    //{ icon: <FaHome />, label: "Overview", href: "/admin/overview" },
 
-    { icon: <UserCart width="23px" height="23px"  />, label: "Customers", href: "/admin_dashboard/customer" },
-    { icon: <TbShirt />, label: "Products", href: "/admin_dashboard/product" },
-    { icon: <LuPencilRuler/>, label: "Measurements", href: "/admin_dashboard/measurement" },
-    { icon: <HiOutlineClipboardList />, label: "Orders", href: "/admin_dashboard/order"},
-    { icon: <LuCalendarCheck />, label: "Appointments", href: "/admin_dashboard/appointment" },
-     { icon: <RiExchangeDollarLine />, label: "Cashbook", href: "/admin_dashboard/cashbook" },
+    { icon: <UserCart width="23px" height="23px"  />, label: "Customers", href: "/admin/customer" },
+    { icon: <TbShirt />, label: "Products", href: "/admin/product" },
+    { icon: <LuPencilRuler/>, label: "Measurements", href: "/admin/measurement" },
+    { icon: <HiOutlineClipboardList />, label: "Orders", href: "/admin/order"},
+    { icon: <LuCalendarCheck />, label: "Appointments", href: "/admin/appointment" },
+     { icon: <RiExchangeDollarLine />, label: "Cashbook", href: "/admin/cashbook" },
     { icon: <FiLogOut width="20px" height="20px" />, label: "Logout", onClick: handleLogout },
   ];
 

@@ -5,14 +5,14 @@ import { User, Building, Eye, Edit, Trash2, X } from "lucide-react";
 import ReusableTable from "@/components/ui/ReusableTable";
 import Button from "@/components/ui/button";
 
-import { useCustomerMeasurement } from "@/app/hooks/useCustomerMeasurement";
+import { useCustomerMeasurement } from "@/hooks/useCustomerMeasurement";
 import { 
   CustomerMeasurementProps, 
   FilterType, 
   FormMode, 
   IndividualMeasurement, 
   CorporateMeasurement 
-} from "@/app/types/CustomerMeasurement.types";
+} from "@/types/CustomerMeasurement.types";
 import MeasurementSlideForm from "../forms/CustomerMeasurmentSlideForm";
 
 const CustomerMeasurement: React.FC<CustomerMeasurementProps> = ({
