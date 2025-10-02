@@ -4,7 +4,7 @@ import Button from "@/components/ui/button";
 import ReusableTable from "@/components/ui/ReusableTable";
 import SlideModal from "@/components/ui/SlideModal";
 
-import { useAppointments, Appointment, FormData, Customer } from "@/app/hooks/useAppointment";
+import { useAppointments, Appointment, FormData, Customer } from "@/hooks/useAppointment";
 import { Plus, RefreshCw, Calendar, Clock, X } from "lucide-react";
 import AppointmentForm from "../forms/AppointmentForm";
 

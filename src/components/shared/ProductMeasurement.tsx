@@ -9,7 +9,7 @@ import useProductMeasurement, {
   CreateProductMeasurementData, 
   MeasurementField, 
   Product 
-} from '@/app/hooks/useProductMeasurements';
+} from '@/hooks/useProductMeasurements';
 import MeasurementView from '../ui/mesurement_view';
 import Button from '../ui/button';
 

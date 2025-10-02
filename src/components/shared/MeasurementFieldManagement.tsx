@@ -4,8 +4,8 @@ import Button from "@/components/ui/button";
 import ReusableTable from "@/components/ui/ReusableTable";
 import SlideModal from "@/components/ui/SlideModal";
 import { Trash2 } from "lucide-react";
-import { useMeasurementField, MeasurementField, MeasurementFieldGroup, CreateMeasurementFieldRequest } from "@/app/hooks/useMeasurement";
-import { useProducts } from "@/app/hooks/useProduct";
+import { useMeasurementField, MeasurementField, MeasurementFieldGroup, CreateMeasurementFieldRequest } from "@/hooks/useMeasurement";
+import { useProducts } from "@/hooks/useProduct";
 
 interface MeasurementFieldManagementProps {
   title?: string;

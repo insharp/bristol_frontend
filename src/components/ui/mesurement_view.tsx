@@ -1,4 +1,4 @@
-import { MeasurementField, ProductMeasurement } from '@/app/hooks/useProductMeasurements';
+import { MeasurementField, ProductMeasurement } from '@/hooks/useProductMeasurements';
 import React, { useState, useEffect } from 'react';
 
 

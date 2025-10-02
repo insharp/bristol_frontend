@@ -1,7 +1,7 @@
 import React from "react";
 import Button from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
-import { Customer, FormData } from "@/app/hooks/useAppointment";
+import { Customer, FormData } from "@/hooks/useAppointment";
 
 interface Order {
   id: string | number;

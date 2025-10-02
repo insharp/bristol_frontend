@@ -2,7 +2,7 @@
 "use client";
 import React, { useState } from "react";
 import { X, Plus, ChevronDown, ChevronUp } from "lucide-react";
-import { Employee, MeasurementField, FormMode } from "@/app/types/CustomerMeasurement.types";
+import { Employee, MeasurementField, FormMode } from "@/types/CustomerMeasurement.types";
 
 import MeasurementFormField from "@/components/forms/MeasurementFormField";
 
