@@ -8,6 +8,7 @@ import { LuCalendarCheck, LuPencilRuler } from "react-icons/lu";
 import { TbShirt, TbUsers } from "react-icons/tb";
 import {  UserCart} from "iconoir-react";
 import { FiLogOut } from "react-icons/fi";
+import { RiExchangeDollarLine } from "react-icons/ri";
 
 export default function SidebarLayout() {
   const router = useRouter();
@@ -32,6 +33,7 @@ export default function SidebarLayout() {
     { icon: <HiOutlineClipboardList />, label: "Orders", href: "/super-admin/order" },
     { icon: <LuCalendarCheck />, label: "Appointments", href: "/super-admin/appointment" },
     //{ icon: <FaHome />, label: "Overview", href: "/super-admin/overview" },
+    { icon: <RiExchangeDollarLine />, label: "Cashbook", href: "/super-admin/cashbook" },
     { icon: <TbUsers />, label: "User", href: "/super-admin/users" },
     { icon: <FiLogOut width="20px" height="20px"  />, label: "Logout", onClick: handleLogout },
   ];

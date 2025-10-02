@@ -275,31 +275,49 @@ const ProductManagement: React.FC<ProductManagementProps> = ({
   };
 
   // Helper function to safely extract error message
-  const extractErrorMessage = (error: any): string => {
-    if (typeof error === 'string') {
-      return error;
-    }
-    if (typeof error === 'object' && error !== null) {
-      if (error.msg) {
-        return error.msg;
-      }
-      if (error.message) {
-        return error.message;
-      }
-      if (error.detail) {
+ const extractErrorMessage = (error: any): string => {
+  // Handle string errors directly
+  if (typeof error === 'string') {
+    return error;
+  }
+  
+  // Handle error objects
+  if (typeof error === 'object' && error !== null) {
+    // Check common error properties in order of priority
+    if (error.detail) {
+      // Backend returns detail in HTTPException
+      if (typeof error.detail === 'string') {
         return error.detail;
       }
-      if (Array.isArray(error)) {
-        return error.map((err: any) => extractErrorMessage(err)).join(', ');
-      }
-      try {
-        return JSON.stringify(error);
-      } catch {
-        return 'Unknown error occurred';
+      // Handle nested detail object
+      if (typeof error.detail === 'object') {
+        return extractErrorMessage(error.detail);
       }
     }
-    return 'An unknown error occurred';
-  };
+    
+    if (error.message) {
+      return error.message;
+    }
+    
+    if (error.msg) {
+      return error.msg;
+    }
+    
+    // Handle array of errors (validation errors)
+    if (Array.isArray(error)) {
+      return error.map(err => extractErrorMessage(err)).join(', ');
+    }
+    
+    // Last resort: stringify the object
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return 'An unknown error occurred';
+    }
+  }
+  
+  return 'An unknown error occurred';
+};
 
   // Form validation - Updated to exclude base_price when customer toggle is on
   const validateForm = () => {
@@ -462,41 +480,83 @@ const ProductManagement: React.FC<ProductManagementProps> = ({
   };
 
   // Handler to confirm deletion
+  // Handler to confirm deletion
   const handleConfirmDelete = async () => {
-    setDeleteModal(prev => ({ ...prev, isDeleting: true }));
+  setDeleteModal(prev => ({ ...prev, isDeleting: true }));
+  
+  try {
+    const result = await deleteProduct(deleteModal.productId);
     
-    try {
-      const result = await deleteProduct(deleteModal.productId);
-      if (result.success) {
-        // Close both modals and clear selected product
-        setDeleteModal({
-          isOpen: false,
-          productName: '',
-          productId: '',
-          isDeleting: false
-        });
-        setIsViewModalOpen(false);
-        setSelectedProduct(null);
-        
-        // Show success message after a brief delay
-        setTimeout(() => {
-          showSuccessMessage('Success!', `Product "${deleteModal.productName}" has been deleted successfully.`);
-        }, 100);
-      } else {
-        const errorMessage = extractErrorMessage(result.error);
-        showErrorMessage('Deletion Failed', errorMessage);
-        
-        // Reset deleting state but keep modal open
-        setDeleteModal(prev => ({ ...prev, isDeleting: false }));
-      }
-    } catch (error) {
-      console.error('Failed to delete product:', error);
-      showErrorMessage('Deletion Failed', 'Failed to delete product. Please try again.');
+    if (result.success) {
+      // Close delete modal
+      setDeleteModal({
+        isOpen: false,
+        productName: '',
+        productId: '',
+        isDeleting: false
+      });
       
-      // Reset deleting state but keep modal open
-      setDeleteModal(prev => ({ ...prev, isDeleting: false }));
+      // Close view modal if open
+      setIsViewModalOpen(false);
+      setSelectedProduct(null);
+      
+      // Show success message
+      showSuccessMessage(
+        'Product Deleted', 
+        `Product "${deleteModal.productName}" has been deleted successfully.`
+      );
+    } else {
+      // Extract and categorize error message
+      const rawError = extractErrorMessage(result.error);
+      const errorLower = rawError.toLowerCase();
+      
+      let errorTitle = 'Cannot Delete Product';
+      let errorMessage = rawError;
+      
+      // Categorize common error scenarios
+      if (errorLower.includes('foreign key') || errorLower.includes('related') || errorLower.includes('constraint')) {
+        errorTitle = 'Cannot Delete Product';
+        errorMessage = `Cannot delete "${deleteModal.productName}" because it has existing orders, appointments, or other related records. Please remove these records first before deleting the product.`;
+      } else if (errorLower.includes('not found')) {
+        errorTitle = 'Product Not Found';
+        errorMessage = `The product you are trying to delete no longer exists. It may have been deleted by another user.`;
+      } else if (errorLower.includes('permission') || errorLower.includes('unauthorized')) {
+        errorTitle = 'Permission Denied';
+        errorMessage = `You do not have permission to delete this product. Please contact your administrator.`;
+      } else if (errorLower.includes('timeout') || errorLower.includes('network')) {
+        errorTitle = 'Connection Error';
+        errorMessage = `Unable to delete the product due to a network issue. Please check your connection and try again.`;
+      }
+      
+      // Close delete confirmation modal
+      setDeleteModal({
+        isOpen: false,
+        productName: '',
+        productId: '',
+        isDeleting: false
+      });
+      
+      // Show categorized error in message modal
+      showErrorMessage(errorTitle, errorMessage);
     }
-  };
+  } catch (error) {
+    console.error('Failed to delete product:', error);
+    
+    // Close delete confirmation modal
+    setDeleteModal({
+      isOpen: false,
+      productName: '',
+      productId: '',
+      isDeleting: false
+    });
+    
+    // Show generic error
+    showErrorMessage(
+      'Deletion Failed', 
+      'An unexpected error occurred while deleting the product. Please try again later.'
+    );
+  }
+};
 
   // Handler to close delete modal
   const handleCloseDeleteModal = () => {

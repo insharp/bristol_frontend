@@ -230,7 +230,6 @@ const CustomerManagement: React.FC<CustomerManagementProps> = ({
 
 
   // Handler to confirm deletion
-  // Handler to confirm deletion
   const handleConfirmDelete = async () => {
     setDeleteModal(prev => ({ ...prev, isDeleting: true }));
     

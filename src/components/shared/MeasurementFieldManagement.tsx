@@ -104,7 +104,7 @@ const MeasurementFieldManagement: React.FC<MeasurementFieldManagementProps> = ({
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [expandedFields, setExpandedFields] = useState<Set<number>>(new Set());
+  const [openFieldIndex, setOpenFieldIndex] = useState<number | null>(0);
   const [modalMode, setModalMode] = useState<"create" | "edit" | "view">("create");
   const [selectedMeasurementFieldGroup, setSelectedMeasurementFieldGroup] = useState<MeasurementFieldGroup | null>(null);
   const [formData, setFormData] = useState<CreateMeasurementFieldRequest>({
@@ -220,15 +220,7 @@ const MeasurementFieldManagement: React.FC<MeasurementFieldManagementProps> = ({
   });
 
   const toggleFieldExpansion = (index: number) => {
-    setExpandedFields(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(index)) {
-        newSet.delete(index);
-      } else {
-        newSet.add(index);
-      }
-      return newSet;
-    });
+    setOpenFieldIndex(openFieldIndex === index ? null : index);
   };
 
   // Table columns - simplified to only show product and field count
@@ -290,6 +282,7 @@ const MeasurementFieldManagement: React.FC<MeasurementFieldManagementProps> = ({
         onClick: (group: MeasurementFieldGroup) => {
           setSelectedMeasurementFieldGroup(group);
           setModalMode("view");
+          setOpenFieldIndex(0);
           setIsModalOpen(true);
         },
       });
@@ -314,6 +307,7 @@ const MeasurementFieldManagement: React.FC<MeasurementFieldManagementProps> = ({
               is_required: field.is_required 
             }))
           });
+          setOpenFieldIndex(0);
           setModalMode("edit");
           setIsModalOpen(true);
         },
@@ -352,6 +346,7 @@ const MeasurementFieldManagement: React.FC<MeasurementFieldManagementProps> = ({
       product_id: '',
       fields: ''
     });
+    setOpenFieldIndex(null);
     setModalMode("create");
     setIsModalOpen(true);
   };
@@ -363,6 +358,7 @@ const MeasurementFieldManagement: React.FC<MeasurementFieldManagementProps> = ({
       product_id: '',
       fields: ''
     });
+    setOpenFieldIndex(0);
   };
 
   // New handlers for Edit and Delete from view modal
@@ -378,6 +374,7 @@ const MeasurementFieldManagement: React.FC<MeasurementFieldManagementProps> = ({
         is_required: field.is_required 
       }))
     });
+    setOpenFieldIndex(0);
     setModalMode("edit");
     // Don't close the modal, just switch mode
   };
@@ -392,10 +389,12 @@ const MeasurementFieldManagement: React.FC<MeasurementFieldManagementProps> = ({
 
   // Field management functions
   const addField = () => {
+    const newIndex = formData.fields.length;
     setFormData({
       ...formData,
       fields: [...formData.fields, { field_name: '', field_type: 'float', unit: '', is_required: "true" }]
     });
+    setOpenFieldIndex(newIndex);
   };
 
   const removeField = (index: number) => {
@@ -403,6 +402,13 @@ const MeasurementFieldManagement: React.FC<MeasurementFieldManagementProps> = ({
       ...formData,
       fields: formData.fields.filter((_, i) => i !== index)
     });
+    // If the removed field was open, close it
+    if (openFieldIndex === index) {
+      setOpenFieldIndex(null);
+    } else if (openFieldIndex !== null && openFieldIndex > index) {
+      // Adjust the open index if a field before it was removed
+      setOpenFieldIndex(openFieldIndex - 1);
+    }
   };
 
   const updateField = (index: number, field: Partial<CreateMeasurementFieldRequest['fields'][0]>) => {
@@ -728,7 +734,7 @@ const MeasurementFieldManagement: React.FC<MeasurementFieldManagementProps> = ({
                     )}
 
                     {formData.fields.map((field, index) => {
-                      const isExpanded = expandedFields.has(index);
+                      const isExpanded = openFieldIndex === index;
                       
                       return (
                         <div key={index} className="border border-gray-200 rounded-lg overflow-hidden">
@@ -895,7 +901,7 @@ const MeasurementFieldManagement: React.FC<MeasurementFieldManagementProps> = ({
                   )}
 
                   {formData.fields.map((field, index) => {
-                    const isExpanded = expandedFields.has(index);
+                    const isExpanded = openFieldIndex === index;
                     
                     return (
                       <div key={index} className="border border-gray-200 rounded-lg overflow-hidden">
@@ -1050,7 +1056,7 @@ const MeasurementFieldManagement: React.FC<MeasurementFieldManagementProps> = ({
                   )}
 
                   {selectedMeasurementFieldGroup.measurement_fields.map((field, index) => {
-                    const isExpanded = expandedFields.has(index);
+                    const isExpanded = openFieldIndex === index;
                     
                     return (
                       <div key={field.id} className="border border-gray-200 rounded-lg overflow-hidden">
