@@ -171,13 +171,7 @@ export default function LoginPage() {
     }
   };
 
-  if (isCheckingSession) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    );
-  }
+
 
   return (
     <div className="flex items-center justify-center p-4">

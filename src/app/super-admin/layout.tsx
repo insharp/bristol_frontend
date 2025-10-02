@@ -12,9 +12,6 @@ export default function SuperAdminLayout({
       {/* Top Header - Full width across top */}
       <header className="flex items-center justify-between bg-white px-6 py-4 border-b border-gray-300  z-10 flex-shrink-0">
         <h1 className="text-blue-600 font-bold text-lg">Bristol Tailors</h1>
-        <div className="bg-orange-400 text-white w-6 h-6 flex items-center justify-center rounded">
-          F
-        </div>
       </header>
       
 
