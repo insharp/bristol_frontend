@@ -57,7 +57,7 @@ const MessageModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-blue-50/70 bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-blue-50/70 bg-opacity-50 flex items-center justify-center z-[10000]">
       <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
         <div className="p-6">
           <div className="flex items-center mb-4">

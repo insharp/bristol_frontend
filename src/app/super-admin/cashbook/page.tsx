@@ -6,11 +6,11 @@ import React from "react";
 const AdminCashBookPage = () => {
   return (
     <CashBookManagement
-      title="Admin - Cash Book Management"
+      title="Cash Book Management"
       permissions={{
         canCreate: true,
-        canEdit: false,
-        canDelete: false,
+        canEdit: true,
+        canDelete: true,
         canView: true,
         canViewSummary: true
       }}

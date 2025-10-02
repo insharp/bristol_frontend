@@ -1,7 +1,7 @@
 // components/EmployeeForm.tsx
 "use client";
 import React, { useState } from "react";
-import { X, Plus, ChevronDown, ChevronUp } from "lucide-react";
+import { X, Plus, ChevronDown } from "lucide-react";
 import { Employee, MeasurementField, FormMode } from "@/types/CustomerMeasurement.types";
 
 import MeasurementFormField from "@/components/forms/MeasurementFormField";
@@ -24,28 +24,19 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
   onUpdateEmployee
 }) => {
   const isDisabled = formMode === 'view';
-  
-  // Track expanded state for each employee
-  const [expandedEmployees, setExpandedEmployees] = useState<Record<number, boolean>>(
-    employees.reduce((acc, _, index) => ({ ...acc, [index]: true }), {})
-  );
+
+  // Track which employee is currently open (only one at a time)
+  const [openEmployeeIndex, setOpenEmployeeIndex] = useState<number | null>(null);
 
   const toggleEmployee = (index: number) => {
-    setExpandedEmployees(prev => ({
-      ...prev,
-      [index]: !prev[index]
-    }));
+    setOpenEmployeeIndex(openEmployeeIndex === index ? null : index);
   };
 
-  // Expand new employees by default
+  // When a new employee is added, automatically open it and close others
   React.useEffect(() => {
-    const newExpanded = { ...expandedEmployees };
-    employees.forEach((_, index) => {
-      if (!(index in newExpanded)) {
-        newExpanded[index] = true;
-      }
-    });
-    setExpandedEmployees(newExpanded);
+    if (employees.length > 0) {
+      setOpenEmployeeIndex(employees.length - 1); // Open the last (newest) employee
+    }
   }, [employees.length]);
 
   return (
@@ -89,11 +80,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
                   type="button"
                   className="text-gray-600 hover:text-gray-800 focus:outline-none"
                 >
-                  {expandedEmployees[index] ? (
-                    <ChevronUp className="w-5 h-5" />
-                  ) : (
-                    <ChevronDown className="w-5 h-5" />
-                  )}
+                  <ChevronDown className="w-5 h-5" />
                 </button>
                 <div>
                   <h4 className="font-medium text-gray-900">
@@ -104,7 +91,6 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
                       Employee Code: {employee.employee_code}<br/>
                       Employee Name: {employee.employee_name} 
                     </p>
-                    
                   )}
                 </div>
               </div>
@@ -123,7 +109,7 @@ const EmployeeForm: React.FC<EmployeeFormProps> = ({
             </div>
 
             {/* Employee Details - Collapsible */}
-            {expandedEmployees[index] && (
+            {openEmployeeIndex === index && (
               <div className="p-4 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Employee Code */}

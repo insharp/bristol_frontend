@@ -14,9 +14,11 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [fieldErrors, setFieldErrors] = useState({ email: '', password: '' });
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [imageKey, setImageKey] = useState(Date.now());
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
@@ -35,7 +37,10 @@ export default function LoginPage() {
           }
         }
       } catch (err) {
+        console.error("Session check error:", err);
         // Not authenticated or network error, do nothing
+      } finally {
+        setIsCheckingSession(false);
       }
     };
     checkSession();
@@ -48,37 +53,70 @@ export default function LoginPage() {
     }
 
     setImageKey(Date.now());
-  }, []); // Empty dependency array means this only runs once on mount
+  }, [router]);
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setEmail(value);
+    
+    // Clear general error when user starts typing
+    if (error) setError("");
+    
+    // Real-time validation - only show errors
+    if (!value) {
+      setEmailError('Email is required.');
+    } else if (!/^\S+@\S+\.\S+$/.test(value)) {
+      setEmailError('Enter a valid email address.');
+    } else {
+      setEmailError('');
+    }
+  };
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setPassword(value);
+    
+    // Clear general error when user starts typing
+    if (error) setError("");
+    
+    // Real-time validation - only show errors
+    if (!value) {
+      setPasswordError('Password is required.');
+    } else {
+      setPasswordError('');
+    }
+  };
 
   const validate = (): boolean => {
     let valid = true;
-    const errors = { email: '', password: '' };
     
     if (!email) {
-      errors.email = 'Email is required.';
+      setEmailError('Email is required.');
       valid = false;
     } else if (!/^\S+@\S+\.\S+$/.test(email)) {
-      errors.email = 'Enter a valid email address.';
+      setEmailError('Enter a valid email address.');
       valid = false;
     }
     
     if (!password) {
-      errors.password = 'Password is required.';
+      setPasswordError('Password is required.');
       valid = false;
     }
     
-    setFieldErrors(errors);
     return valid;
   };
 
   const handleSubmit = async (): Promise<void> => {
     if (!validate()) return;
+    
     setLoading(true);
     setError("");
+    setEmailError("");
+    setPasswordError("");
     
     try {
       const requestData = {
-        email: email,
+        email: email.trim(),
         password: password,
         remember: remember
       };
@@ -90,38 +128,56 @@ export default function LoginPage() {
         credentials: "include"
       });
       
-      const data = await res.json();
-      
-      if (res.ok) {
-        // Save or remove email based on "Remember Me" checkbox
-        if (remember) {
-          localStorage.setItem('rememberedEmail', email);
-        } else {
-          localStorage.removeItem('rememberedEmail');
-        }
-
-        // Redirect based on role
-        if (data.data.role === "admin") {
-          router.push("/admin/customer");
-        } else if (data.data.role === "superadmin") {
-          router.push("/super-admin/customer");
-        } else {
-          setError("Unknown user type");
-        }
-      } else {
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ message: "Invalid credentials" }));
+        
         // Show "Invalid credentials" for authentication failures
         if (res.status === 401 || res.status === 403) {
           setError("Invalid credentials");
         } else {
           setError(data.message || "Invalid credentials");
         }
+        return;
+      }
+      
+      const data = await res.json();
+      
+      // Save or remove email based on "Remember Me" checkbox
+      if (remember) {
+        localStorage.setItem('rememberedEmail', email.trim());
+      } else {
+        localStorage.removeItem('rememberedEmail');
+      }
+
+      // Redirect based on role
+      if (data.data.role === "admin") {
+        router.push("/admin/customer");
+      } else if (data.data.role === "superadmin") {
+        router.push("/super-admin/customer");
+      } else {
+        setError("Unknown user type");
       }
     } catch (err) {
-      setError("Network error");
+      console.error("Login error:", err);
+      setError("Unable to connect to the server. Please check your connection and try again.");
     } finally {
       setLoading(false);
     }
   };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !loading) {
+      handleSubmit();
+    }
+  };
+
+  if (isCheckingSession) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-gray-600">Loading...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center justify-center p-4">
@@ -158,15 +214,17 @@ export default function LoginPage() {
                   type="email"
                   id="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={handleEmailChange}
+                  onKeyPress={handleKeyPress}
                   required
                   className={`w-full px-4 py-3 border ${
-                    fieldErrors.email ? 'border-red-500' : 'border-gray-300'
+                    emailError ? 'border-red-500' : 'border-gray-300'
                   } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all`}
                   placeholder="Enter your email"
+                  disabled={loading}
                 />
-                {fieldErrors.email && (
-                  <p className="text-red-500 text-sm mt-1">{fieldErrors.email}</p>
+                {emailError && (
+                  <p className="text-red-500 text-sm mt-1">{emailError}</p>
                 )}
               </div>
 
@@ -179,12 +237,14 @@ export default function LoginPage() {
                     type={showPassword ? "text" : "password"}
                     id="password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={handlePasswordChange}
+                    onKeyPress={handleKeyPress}
                     required
                     className={`w-full px-4 py-3 pr-12 border ${
-                      fieldErrors.password ? 'border-red-500' : 'border-gray-300'
+                      passwordError ? 'border-red-500' : 'border-gray-300'
                     } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all [&::-ms-reveal]:hidden [&::-ms-clear]:hidden`}
                     placeholder="Enter your password"
+                    disabled={loading}
                     style={{
                       WebkitTextSecurity: showPassword ? 'none' : undefined
                     } as React.CSSProperties}
@@ -194,12 +254,13 @@ export default function LoginPage() {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                     tabIndex={-1}
+                    disabled={loading}
                   >
                     {showPassword ? <Eye size={20} /> : <EyeOff size={20} />}
                   </button>
                 </div>
-                {fieldErrors.password && (
-                  <p className="text-red-500 text-sm mt-1">{fieldErrors.password}</p>
+                {passwordError && (
+                  <p className="text-red-500 text-sm mt-1">{passwordError}</p>
                 )}
               </div>
 
@@ -210,6 +271,7 @@ export default function LoginPage() {
                     checked={remember}
                     onChange={(e) => setRemember(e.target.checked)}
                     className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    disabled={loading}
                   />
                   <span className="ml-2 text-sm font-semibold text-gray-700">Remember Me</span>
                 </label>

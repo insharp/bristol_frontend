@@ -1979,6 +1979,14 @@ const getLoadingState = () => {
               )}
             </div>
 
+            {/* Order Type - VIEW ONLY */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Order Type</label>
+              <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50">
+                {bulkCustomFormData.orderType === 'bulk' ? 'Corporate' : 'Individual'}
+              </div>
+            </div>
+
            {/* Product Type Selection */}
            <div>
               <label className="block text-sm font-medium mb-2">Product Type *</label>
