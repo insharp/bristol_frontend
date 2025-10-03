@@ -141,20 +141,21 @@ export default function LoginPage() {
               />
             </div>
             <span 
-            className="font-bold text-blue-500"
-            style={{
-              fontSize: '24px',      // ← Change logo size here
-              fontFamily: 'inter mono'  // ← Logo font (Poppins)
-            }}
-          >
-          Bristol Tailors
-          </span>
+              style={{
+                fontSize: '30px',
+                fontFamily: "'Poppins', sans-serif",
+                fontWeight:800
+              }}
+              className="text-blue-500"
+            >
+              Bristol Tailors
+            </span>
           </div>
 
           <div className="flex flex-col justify-center items-center flex-1">
-  <div className="w-full max-w-md">
-    <div className="mb-8">
-      <h1
+            <div className="w-full max-w-md">
+              <div className="mb-8">
+                <h1
                 className="font-bold text-gray-900 mb-2"
                 style={{
                   fontSize: '28px',    // ← Change heading size here
@@ -324,7 +325,7 @@ export default function LoginPage() {
             </div>
           </div>
         </div>
-        </div>
+      </div>
 
         {/* Right side - Background Image */}
         <div className="hidden md:block md:w-5/8 relative overflow-hidden ">
