@@ -126,8 +126,8 @@ export default function LoginPage() {
   return (
     <div className="flex items-center justify-center">
       <div className="w-full min-h-screen bg-white rounded-3xl shadow-2xl overflow-hidden flex">
-        {/* Left side - Login Form */}
-        <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col -mt-10">
+       {/* Left side - Login Form */}
+        <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-between">
           <div className="flex items-left mb-25 -ml-8">
             <div className="w-7 h-7 mr-3 flex items-center justify-center">
               <Image
@@ -151,9 +151,10 @@ export default function LoginPage() {
           </span>
           </div>
 
-          <div className="ml-15 flex flex-col flex-1">
-            <div className="mb-8">
-              <h1 
+          <div className="flex flex-col justify-center items-center flex-1">
+  <div className="w-full max-w-md">
+    <div className="mb-8">
+      <h1
                 className="font-bold text-gray-900 mb-2"
                 style={{
                   fontSize: '28px',    // ← Change heading size here
@@ -322,6 +323,7 @@ export default function LoginPage() {
               </button>
             </div>
           </div>
+        </div>
         </div>
 
         {/* Right side - Background Image */}
