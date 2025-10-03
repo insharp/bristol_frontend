@@ -140,87 +140,169 @@ export default function LoginPage() {
                 unoptimized
               />
             </div>
-            <span className="text-lg font-bold text-blue-500">Bristol Tailors</span>
+            <span 
+            className="font-bold text-blue-500"
+            style={{
+              fontSize: '24px',      // ← Change logo size here
+              fontFamily: 'inter mono'  // ← Logo font (Poppins)
+            }}
+          >
+          Bristol Tailors
+          </span>
           </div>
 
           <div className="ml-15 flex flex-col flex-1">
             <div className="mb-8">
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">Sign In</h1>
-              <p className="text-gray-400">Please enter details to log in to your account</p>
+              <h1 
+                className="font-bold text-gray-900 mb-2"
+                style={{
+                  fontSize: '28px',    // ← Change heading size here
+                  fontFamily: 'Inter'  // ← Heading font (Inter)
+                }}
+              >
+                Sign In
+
+              </h1>
+              <p 
+                className="text-gray-400"
+                style={{
+                  fontSize: '14px',    // ← Change subtext size here
+                  fontFamily: 'Inter'  // ← Subtext font (Inter)
+                }}
+              >
+                Please enter details to log in to your account
+              </p>
+
             </div>
 
             <div className="space-y-6">
 
-              <div className="relative max-w-md">
-                <input
-                  type="email"
-                  id="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className={`w-9/10 px-4 py-2 border text-sm ${
-                    fieldErrors.email ? 'border-red-500' : 'border-gray-300'
-                  } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all peer`}
-                  placeholder=" "
+              <div 
+                  className="relative" 
+                  style={{ 
+                    maxWidth: '400px'  // ← Change email field width here
+                  }}
+                >
+                  <input
+                    type="email"
+                    id="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className={`w-full px-4 border ${
+                      fieldErrors.email ? 'border-red-500' : 'border-gray-300'
+                    } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all peer`}
+                    placeholder=" "
+                    style={{
+                      height: '48px',      // ← Change email field height here
+                      fontSize: '14px',    // ← Change email text size here
+                      fontFamily: 'Inter'  // ← Email field font (Inter)
+                    }}
                   />
                   <label 
                     htmlFor="email" 
-                    className="text-sm absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 bg-white px-1 transition-all duration-200 pointer-events-none peer-focus:top-0 peer-focus:text-xs peer-focus:text-blue-500 peer-[:not(:placeholder-shown)]:top-0 peer-[:not(:placeholder-shown)]:text-xs"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 bg-white px-1 transition-all duration-200 pointer-events-none peer-focus:top-0 peer-focus:text-xs peer-focus:text-blue-500 peer-[:not(:placeholder-shown)]:top-0 peer-[:not(:placeholder-shown)]:text-xs"
+                    style={{
+                      fontSize: '14px',    // ← Change label size here
+                      fontFamily: 'Inter'  // ← Label font (Inter)
+                    }}
                   >
                     Email
                   </label>
-                {fieldErrors.email && (
-                  <p className="text-red-500 text-sm mt-1">{fieldErrors.email}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                  {fieldErrors.email && (
+                    <p 
+                      className="text-red-500 mt-1"
+                      style={{
+                        fontSize: '12px',    // ← Change error text size here
+                        fontFamily: 'Inter'
+                      }}
+                    >
+                      {fieldErrors.email}
+                    </p>
+                  )}
+                </div>
+              
+              
+                <div 
+                className="relative" 
+                style={{ 
+                  maxWidth: '400px'  // ← Change password field width here
+                }}
+              >
+                <input
+                  type={showPassword ? "text" : "password"}
+                  id="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className={`w-full px-4 pr-12 border ${
+                    fieldErrors.password ? 'border-red-500' : 'border-gray-300'
+                  } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all peer`}
+                  placeholder=" "
+                  style={{
+                    height: '48px',      // ← Change password field height here
+                    fontSize: '14px',    // ← Change password text size here
+                    fontFamily: 'Inter'  // ← Password field font (Inter)
+                  }}
+                />
+                <label 
+                  htmlFor="password" 
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 bg-white px-1 transition-all duration-200 pointer-events-none peer-focus:top-0 peer-focus:text-xs peer-focus:text-blue-500 peer-[:not(:placeholder-shown)]:top-0 peer-[:not(:placeholder-shown)]:text-xs"
+                  style={{
+                    fontSize: '14px',    // ← Change label size here
+                    fontFamily: 'Inter'  // ← Label font (Inter)
+                  }}
+                >
                   Password
                 </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    id="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    className={`w-full px-4 py-3 pr-12 border ${
-                      fieldErrors.password ? 'border-red-500' : 'border-gray-300'
-                    } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all [&::-ms-reveal]:hidden [&::-ms-clear]:hidden`}
-                    placeholder="Enter your password"
-                    style={{
-                      WebkitTextSecurity: showPassword ? 'none' : undefined
-                    } as React.CSSProperties}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    tabIndex={-1}
-                  >
-                    {showPassword ? <Eye size={20} /> : <EyeOff size={20} />}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
                 {fieldErrors.password && (
-                  <p className="text-red-500 text-sm mt-1">{fieldErrors.password}</p>
+                  <p 
+                    className="text-red-500 mt-1"
+                    style={{
+                      fontSize: '12px',    // ← Change error text size here
+                      fontFamily: 'Inter'
+                    }}
+                  >
+                    {fieldErrors.password}
+                  </p>
                 )}
               </div>
 
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between -mt-2">
                 <label className="flex items-center cursor-pointer">
                   <input
                     type="checkbox"
                     checked={remember}
                     onChange={(e) => setRemember(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    className="w-3 h-3 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                   />
-                  <span className="ml-2 text-sm font-semibold text-gray-700">Remember Me</span>
+                  <span 
+                    className="ml-2 text-gray-600"
+                    style={{
+                      fontSize: '12px',    // ← Change checkbox text size here
+                      fontFamily: 'Inter'  // ← Checkbox text font (Inter)
+                    }}
+                  >
+                    I agree to the Terms and Privacy Policy
+                  </span>
                 </label>
               </div>
 
               {error && (
-                <div className="text-red-500 text-sm text-center bg-red-50 p-3 rounded-lg">
+                <div 
+                  className="text-red-500 text-center bg-red-50 p-3 rounded-lg"
+                  style={{
+                    fontSize: '14px',    // ← Change error message size here
+                    fontFamily: 'Inter'  // ← Error message font (Inter)
+                  }}
+                >
                   {error}
                 </div>
               )}
@@ -228,16 +310,22 @@ export default function LoginPage() {
               <button
                 onClick={handleSubmit}
                 disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{
+                  maxWidth: '400px',     // ← Change button width here
+                  height: '48px',        // ← Change button height here
+                  fontSize: '16px',      // ← Change button text size here
+                  fontFamily: 'Inter'    // ← Button font (Inter)
+                }}
               >
-                {loading ? "Signing In..." : "Sign In"}
+                {loading ? "Signing In..." : "Sign in"}
               </button>
             </div>
           </div>
         </div>
 
         {/* Right side - Background Image */}
-        <div className="hidden md:block md:w-1/2 relative overflow-hidden">
+        <div className="hidden md:block md:w-5/8 relative overflow-hidden ">
           <Image
             src="/images/login_background.png"
             alt="Background"
