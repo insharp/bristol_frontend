@@ -124,12 +124,12 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex items-center justify-center p-4">
+    <div className="flex items-center justify-center">
       <div className="w-full min-h-screen bg-white rounded-3xl shadow-2xl overflow-hidden flex">
         {/* Left side - Login Form */}
-        <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col">
-          <div className="flex items-center">
-            <div className="w-13 h-13 mr-3 flex items-center justify-center">
+        <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col -mt-10">
+          <div className="flex items-left mb-25 -ml-8">
+            <div className="w-7 h-7 mr-3 flex items-center justify-center">
               <Image
                 src="/images/logo.png"
                 alt="Bristol Tailors Logo"
@@ -140,31 +140,35 @@ export default function LoginPage() {
                 unoptimized
               />
             </div>
-            <span className="text-xl font-bold text-blue-500">Bristol Tailors</span>
+            <span className="text-lg font-bold text-blue-500">Bristol Tailors</span>
           </div>
 
-          <div className="justify-center flex flex-col flex-1">
+          <div className="ml-15 flex flex-col flex-1">
             <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Sign In</h1>
-              <p className="text-gray-600">Please enter details to log in to your account.</p>
+              <h1 className="text-2xl font-bold text-gray-900 mb-2">Sign In</h1>
+              <p className="text-gray-400">Please enter details to log in to your account</p>
             </div>
 
             <div className="space-y-6">
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                  Email
-                </label>
+
+              <div className="relative max-w-md">
                 <input
                   type="email"
                   id="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className={`w-full px-4 py-3 border ${
+                  className={`w-9/10 px-4 py-2 border text-sm ${
                     fieldErrors.email ? 'border-red-500' : 'border-gray-300'
-                  } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all`}
-                  placeholder="Enter your email"
-                />
+                  } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all peer`}
+                  placeholder=" "
+                  />
+                  <label 
+                    htmlFor="email" 
+                    className="text-sm absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 bg-white px-1 transition-all duration-200 pointer-events-none peer-focus:top-0 peer-focus:text-xs peer-focus:text-blue-500 peer-[:not(:placeholder-shown)]:top-0 peer-[:not(:placeholder-shown)]:text-xs"
+                  >
+                    Email
+                  </label>
                 {fieldErrors.email && (
                   <p className="text-red-500 text-sm mt-1">{fieldErrors.email}</p>
                 )}
