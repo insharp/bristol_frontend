@@ -129,7 +129,7 @@ export default function LoginPage() {
        {/* Left side - Login Form */}
         <div className="w-full md:w-1/2 p-8 md:p-12 flex flex-col justify-between">
           <div className="flex items-left mb-25 -ml-8">
-            <div className="w-7 h-7 mr-3 flex items-center justify-center">
+            <div className="w-11 h-11 mr-3 flex items-center justify-center">
               <Image
                 src="/images/logo.png"
                 alt="Bristol Tailors Logo"
@@ -142,7 +142,7 @@ export default function LoginPage() {
             </div>
             <span 
               style={{
-                fontSize: '30px',
+                fontSize: '28px',
                 fontFamily: "'Poppins', sans-serif",
                 fontWeight:800
               }}
@@ -158,11 +158,11 @@ export default function LoginPage() {
                 <h1
                 className="font-bold text-gray-900 mb-2"
                 style={{
-                  fontSize: '28px',    // ← Change heading size here
+                  fontSize: '30px',    // ← Change heading size here
                   fontFamily: 'Inter'  // ← Heading font (Inter)
                 }}
               >
-                Sign In
+                Sign in
 
               </h1>
               <p 
@@ -196,7 +196,7 @@ export default function LoginPage() {
                     } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all peer`}
                     placeholder=" "
                     style={{
-                      height: '48px',      // ← Change email field height here
+                      height: '50px',      // ← Change email field height here
                       fontSize: '14px',    // ← Change email text size here
                       fontFamily: 'Inter'  // ← Email field font (Inter)
                     }}
@@ -242,7 +242,7 @@ export default function LoginPage() {
                   } rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all peer`}
                   placeholder=" "
                   style={{
-                    height: '48px',      // ← Change password field height here
+                    height: '50px',      // ← Change password field height here
                     fontSize: '14px',    // ← Change password text size here
                     fontFamily: 'Inter'  // ← Password field font (Inter)
                   }}
@@ -298,16 +298,17 @@ export default function LoginPage() {
               </div>
 
               {error && (
-                <div 
-                  className="text-red-500 text-center bg-red-50 p-3 rounded-lg"
-                  style={{
-                    fontSize: '14px',    // ← Change error message size here
-                    fontFamily: 'Inter'  // ← Error message font (Inter)
-                  }}
-                >
-                  {error}
-                </div>
-              )}
+              <div 
+                className="text-red-500 text-center bg-red-50 p-1 rounded-lg"
+                style={{
+                  maxWidth: '400px',   // ← Same width as email/password fields
+                  fontSize: '14px',    // ← Change error message size here
+                  fontFamily: 'Inter'  // ← Error message font (Inter)
+                }}
+              >
+                {error}
+              </div>
+            )}
 
               <button
                 onClick={handleSubmit}
